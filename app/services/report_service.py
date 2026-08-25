@@ -34,18 +34,23 @@ from app.schemas.report import (
 # Valid status transitions
 # ---------------------------------------------------------------------------
 
-# Allowed transitions for employees
-# TODO (TASK-05): Define valid transitions
-EMPLOYEE_TRANSITIONS: dict[ReportStatus, list[ReportStatus]] = {}
+EMPLOYEE_TRANSITIONS: dict[ReportStatus, list[ReportStatus]] = {
+    ReportStatus.submitted: [ReportStatus.under_review],
+    ReportStatus.under_review: [ReportStatus.assigned, ReportStatus.rejected],
+    ReportStatus.assigned: [ReportStatus.in_progress],
+    ReportStatus.in_progress: [ReportStatus.resolved, ReportStatus.rejected],
+    ReportStatus.resolved: [],
+    ReportStatus.rejected: [],
+    ReportStatus.cancelled: [],
+}
+
 
 def validate_transition(from_status: ReportStatus, to_status: ReportStatus) -> None:
-    """
-    TODO (TASK-05): Raise InvalidStatusTransitionError if the transition is not allowed.
-    """
-    pass
+    allowed = EMPLOYEE_TRANSITIONS.get(from_status, [])
+    if to_status not in allowed:
+        raise InvalidStatusTransitionError(from_status.value, to_status.value)
 
 
-# ---------------------------------------------------------------------------
 # Helper: record a status change in history
 # ---------------------------------------------------------------------------
 
@@ -92,9 +97,11 @@ def validate_location(
     area = db.get(Area, area_id)
     if not area or not area.is_active:
         raise BadRequestError("INVALID_AREA", "Area not found or inactive.")
-
-    # TODO (TASK-03): The area must belong to the selected governorate.
-
+    if area.governorate_id != governorate_id:
+        raise BadRequestError(
+        "INVALID_AREA",
+        "The selected area does not belong to the selected governorate.",
+    )
     category = db.get(ServiceCategory, category_id)
     if not category or not category.is_active:
         raise BadRequestError("INVALID_CATEGORY", "Category not found or inactive.")
@@ -128,7 +135,13 @@ def create_report(db: Session, citizen: User, data: ReportCreate) -> Report:
     db.add(report)
     db.flush()  # Get report.id before recording history.
 
-    # TODO (TASK-05): Record the initial status entry in history.
+    record_status_change(
+    db,
+    report,
+    ReportStatus.submitted,
+    citizen,
+    note="Report submitted.",
+)
     db.commit()
     db.refresh(report)
     return report
@@ -137,11 +150,14 @@ def create_report(db: Session, citizen: User, data: ReportCreate) -> Report:
 def get_citizen_report(db: Session, citizen: User, report_id: int) -> Report:
     """
     Return a report.
-    TODO (TASK-02): Ensure citizens can only view their own reports!
+    Citizens can only view their own reports.
     """
     report = db.get(Report, report_id)
     if report is None:
         raise NotFoundError("Report")
+
+    if report.citizen_id != citizen.id:
+        raise PermissionDeniedError("You can only access your own reports.")
     return report
 
 
@@ -187,9 +203,13 @@ def cancel_report(db: Session, citizen: User, report_id: int) -> Report:
             "You can only cancel a report that is in 'submitted' or 'under_review' status.",
         )
 
-    report.status = ReportStatus.cancelled
-    # TODO (TASK-05): Record this change in status history.
-
+    record_status_change(
+    db,
+    report,
+    ReportStatus.cancelled,
+    citizen,
+    note="Report cancelled by citizen.",
+)
     db.commit()
     db.refresh(report)
     return report
@@ -215,12 +235,17 @@ def employee_update_status(
 ) -> Report:
     """Employee changes a report status."""
     report = get_report_for_employee(db, employee, report_id)
-    
-    # TODO (TASK-05): Validate transition using allowed transition table.
-    report.status = data.new_status
-    
-    # TODO (TASK-05): Record status change.
-    
+
+    validate_transition(report.status, data.new_status)
+
+    record_status_change(
+        db,
+        report,
+        data.new_status,
+        employee,
+        note=data.note,
+    )
+
     db.commit()
     db.refresh(report)
     return report
@@ -229,18 +254,26 @@ def employee_update_status(
 def employee_resolve_report(
     db: Session, employee: User, report_id: int, data: ResolveRequest
 ) -> Report:
-    """
-    Resolve a report.
-    TODO (TASK-07): Enforce resolution rules and tracking.
-    """
+    """Resolve a report with a mandatory resolution summary."""
     report = get_report_for_employee(db, employee, report_id)
+
+    if report.status != ReportStatus.in_progress:
+        raise BadRequestError(
+            "REPORT_NOT_RESOLVABLE",
+            "Only reports that are in progress can be resolved.",
+        )
 
     report.resolution_summary = data.resolution_summary
     report.resolved_at = datetime.now(timezone.utc)
-    report.status = ReportStatus.resolved
-    
-    # TODO (TASK-07): Record status change in history.
-    
+
+    record_status_change(
+        db,
+        report,
+        ReportStatus.resolved,
+        employee,
+        note=data.resolution_summary,
+    )
+
     db.commit()
     db.refresh(report)
     return report
@@ -295,12 +328,15 @@ def admin_assign_report(
     if not employee.is_active:
         raise BadRequestError("INACTIVE_EMPLOYEE", "The selected employee is inactive.")
 
-    # TODO (TASK-04): Ensure employee belongs to the same governorate.
+    if employee.governorate_id != report.governorate_id:
+        raise BadRequestError(
+        "EMPLOYEE_GOVERNORATE_MISMATCH",
+        "The employee must belong to the same governorate as the report.",
+    )
     
     report.assigned_employee_id = employee.id
     report.status = ReportStatus.assigned
     
-    # TODO (TASK-04): Record this status change in history.
     
     db.commit()
     db.refresh(report)
@@ -319,3 +355,4 @@ def admin_update_priority(
     db.commit()
     db.refresh(report)
     return report
+

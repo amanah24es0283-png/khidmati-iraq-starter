@@ -98,19 +98,50 @@ def toggle_user_status(
 
 @router.get("/reports", response_model=PaginatedResponse)
 def list_reports(
+    status: ReportStatus | None = Query(default=None),
+    priority: ReportPriority | None = Query(default=None),
+    category_id: int | None = Query(default=None),
+    governorate_id: int | None = Query(default=None),
+    assigned_employee_id: int | None = Query(default=None),
+    search: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    """
-    List all reports.
-    TODO (TASK-01): Implement filtering, search, and pagination.
-    """
-    items = db.query(Report).order_by(Report.created_at.desc()).all()
+    """List reports with filtering, search, and pagination."""
+    query = db.query(Report)
+
+    if status is not None:
+        query = query.filter(Report.status == status)
+    if priority is not None:
+        query = query.filter(Report.priority == priority)
+    if category_id is not None:
+        query = query.filter(Report.category_id == category_id)
+    if governorate_id is not None:
+        query = query.filter(Report.governorate_id == governorate_id)
+    if assigned_employee_id is not None:
+        query = query.filter(Report.assigned_employee_id == assigned_employee_id)
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            Report.reference_number.ilike(search_term)
+            | Report.title.ilike(search_term)
+            | Report.description.ilike(search_term)
+        )
+
+    total = query.count()
+    items = (
+        query.order_by(Report.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
 
     return PaginatedResponse(
-        page=1,
-        page_size=len(items) if items else 20,
-        total=len(items),
+        page=page,
+        page_size=page_size,
+        total=total,
         items=[ReportResponse.model_validate(r) for r in items],
     )
 
@@ -146,15 +177,40 @@ def dashboard(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    """
-    High-level statistics for the admin dashboard.
-    TODO (TASK-08): Complete the dashboard implementation.
-    """
+    """Return high-level statistics for the admin dashboard."""
+    total_reports = db.query(func.count(Report.id)).scalar() or 0
+
+    resolved_reports = (
+        db.query(func.count(Report.id))
+        .filter(Report.status == ReportStatus.resolved)
+        .scalar()
+        or 0
+    )
+
+    open_reports = total_reports - resolved_reports
+
+    status_rows = (
+        db.query(Report.status, func.count(Report.id))
+        .group_by(Report.status)
+        .all()
+    )
+    priority_rows = (
+        db.query(Report.priority, func.count(Report.id))
+        .group_by(Report.priority)
+        .all()
+    )
+    category_rows = (
+        db.query(ServiceCategory.name_ar, func.count(Report.id))
+        .join(ServiceCategory, Report.category_id == ServiceCategory.id)
+        .group_by(ServiceCategory.id, ServiceCategory.name_ar)
+        .all()
+    )
+
     return {
-        "total_reports": 0,
-        "open_reports": 0,
-        "resolved_reports": 0,
-        "reports_by_status": {},
-        "reports_by_priority": {},
-        "reports_by_category": {},
+        "total_reports": total_reports,
+        "open_reports": open_reports,
+        "resolved_reports": resolved_reports,
+        "reports_by_status": {status.value: count for status, count in status_rows},
+        "reports_by_priority": {priority.value: count for priority, count in priority_rows},
+        "reports_by_category": {name: count for name, count in category_rows},
     }
