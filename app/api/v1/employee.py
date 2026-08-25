@@ -3,13 +3,13 @@ app/api/v1/employee.py
 Employee-facing endpoints for managing reports within their governorate.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_employee
 from app.database import get_db
 from app.models.comment import ReportComment
-from app.models.report import Report
+from app.models.report import Report, ReportPriority
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.schemas.report import (
@@ -25,6 +25,7 @@ router = APIRouter(prefix="/employee", tags=["Employee"])
 
 @router.get("/reports", response_model=list[ReportResponse])
 def list_governorate_reports(
+    urgent_only: bool | None = Query(default=None),
     db: Session = Depends(get_db),
     employee: User = Depends(require_employee),
 ):
@@ -32,6 +33,7 @@ def list_governorate_reports(
     return (
         db.query(Report)
         .filter(Report.governorate_id == employee.governorate_id)
+        .filter(Report.priority == ReportPriority.urgent if urgent_only else True)
         .order_by(Report.created_at.desc())
         .all()
     )

@@ -104,6 +104,7 @@ def list_reports(
     governorate_id: int | None = Query(default=None),
     assigned_employee_id: int | None = Query(default=None),
     search: str | None = Query(default=None),
+    urgent_only: bool | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -122,6 +123,9 @@ def list_reports(
         query = query.filter(Report.governorate_id == governorate_id)
     if assigned_employee_id is not None:
         query = query.filter(Report.assigned_employee_id == assigned_employee_id)
+    if urgent_only:
+        query = query.filter(Report.priority == ReportPriority.urgent)
+
     if search:
         search_term = f"%{search.strip()}%"
         query = query.filter(
@@ -210,6 +214,7 @@ def dashboard(
         "total_reports": total_reports,
         "open_reports": open_reports,
         "resolved_reports": resolved_reports,
+        "urgent_reports": db.query(func.count(Report.id)).filter(Report.priority == ReportPriority.urgent).scalar() or 0,
         "reports_by_status": {status.value: count for status, count in status_rows},
         "reports_by_priority": {priority.value: count for priority, count in priority_rows},
         "reports_by_category": {name: count for name, count in category_rows},
