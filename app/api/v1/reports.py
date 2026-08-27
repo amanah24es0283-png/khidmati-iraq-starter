@@ -112,6 +112,7 @@ def get_report_comments(
         db.query(ReportComment)
         .filter(
             ReportComment.report_id == report_id,
+            ReportComment.is_internal.is_(False),
         )
         .order_by(ReportComment.created_at.asc())
         .all()

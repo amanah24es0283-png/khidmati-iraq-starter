@@ -6,11 +6,11 @@ Employee-facing endpoints for managing reports within their governorate.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import require_employee
+from app.core.dependencies import require_employee, require_employee_or_admin
 from app.database import get_db
 from app.models.comment import ReportComment
 from app.models.report import Report, ReportPriority
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.schemas.report import (
     ReportDetailResponse,
@@ -74,6 +74,38 @@ def add_public_comment(
     """Add a public comment to a report (visible to the citizen)."""
     report_service.get_report_for_employee(db, employee, report_id)
     return report_service.add_comment(db, employee, report_id, data.content, is_internal=False)
+
+
+@router.get("/reports/{report_id}/internal-notes", response_model=list[CommentResponse])
+def get_internal_notes(
+    report_id: int,
+    db: Session = Depends(get_db),
+    staff: User = Depends(require_employee_or_admin),
+):
+    """Return internal notes for an authorized employee or admin."""
+
+    report = db.get(Report, report_id)
+    if report is None:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Report")
+
+    # Employees may only access reports within their governorate.
+    if staff.role == UserRole.employee:
+        if report.governorate_id != staff.governorate_id:
+            from app.core.exceptions import PermissionDeniedError
+            raise PermissionDeniedError(
+                "This report is outside your governorate."
+            )
+
+    return (
+        db.query(ReportComment)
+        .filter(
+            ReportComment.report_id == report_id,
+            ReportComment.is_internal.is_(True),
+        )
+        .order_by(ReportComment.created_at.asc())
+        .all()
+    )
 
 
 @router.post("/reports/{report_id}/internal-notes", response_model=CommentResponse, status_code=201)

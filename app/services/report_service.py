@@ -286,10 +286,24 @@ def add_comment(
     content: str,
     is_internal: bool = False,
 ) -> ReportComment:
-    """Add a comment to a report. is_internal is only allowed for staff."""
+    """Add a comment to a report with backend-level visibility protection."""
+
     report = db.get(Report, report_id)
     if report is None:
         raise NotFoundError("Report")
+
+    # Internal notes are restricted to employees and admins.
+    if is_internal and author.role not in (UserRole.employee, UserRole.admin):
+        raise PermissionDeniedError(
+            "Only employees and admins can create internal notes."
+        )
+
+    # Employees may only add internal notes to reports in their governorate.
+    if is_internal and author.role == UserRole.employee:
+        if report.governorate_id != author.governorate_id:
+            raise PermissionDeniedError(
+                "This report is outside your governorate."
+            )
 
     comment = ReportComment(
         report_id=report_id,
@@ -297,6 +311,7 @@ def add_comment(
         content=content,
         is_internal=is_internal,
     )
+
     db.add(comment)
     db.commit()
     db.refresh(comment)
