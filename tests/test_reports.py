@@ -305,3 +305,143 @@ class TestInternalNotes:
             for c in comments
         )
 
+
+
+# ---------------------------------------------------------------------------
+# CHANGE REQUEST — Urgent Reports
+# ---------------------------------------------------------------------------
+
+class TestUrgentReports:
+
+    def test_citizen_cannot_set_urgent_priority_on_create(
+        self,
+        client: TestClient,
+        citizen: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area: Area,
+    ):
+        token = get_token(client, citizen.email)
+
+        payload = create_report_payload(
+            category.id,
+            governorate.id,
+            area.id,
+        )
+        payload["priority"] = "urgent"
+
+        resp = client.post(
+            "/api/v1/reports",
+            json=payload,
+            headers=auth_header(token),
+        )
+
+        assert resp.status_code == 201, resp.json()
+        assert resp.json()["priority"] == "medium"
+
+    def test_admin_urgent_only_filter(
+        self,
+        client: TestClient,
+        db: Session,
+        citizen: User,
+        admin: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area: Area,
+    ):
+        citizen_token = get_token(client, citizen.email)
+        admin_token = get_token(client, admin.email)
+
+        report = post_report(
+            client, citizen_token, category, governorate, area
+        )
+
+        priority_resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/priority",
+            json={"priority": "urgent"},
+            headers=auth_header(admin_token),
+        )
+        assert priority_resp.status_code == 200, priority_resp.json()
+
+        resp = client.get(
+            "/api/v1/admin/reports",
+            params={"urgent_only": True},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        data = resp.json()
+        items = data["items"]
+
+        assert len(items) >= 1
+        assert all(item["priority"] == "urgent" for item in items)
+        assert any(item["id"] == report["id"] for item in items)
+
+    def test_employee_urgent_only_filter(
+        self,
+        client: TestClient,
+        citizen: User,
+        employee: User,
+        admin: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area: Area,
+    ):
+        citizen_token = get_token(client, citizen.email)
+        admin_token = get_token(client, admin.email)
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client, citizen_token, category, governorate, area
+        )
+
+        priority_resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/priority",
+            json={"priority": "urgent"},
+            headers=auth_header(admin_token),
+        )
+        assert priority_resp.status_code == 200, priority_resp.json()
+
+        resp = client.get(
+            "/api/v1/employee/reports",
+            params={"urgent_only": True},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        items = resp.json()
+        assert all(item["priority"] == "urgent" for item in items)
+        assert any(item["id"] == report["id"] for item in items)
+
+    def test_admin_dashboard_counts_urgent_reports(
+        self,
+        client: TestClient,
+        citizen: User,
+        admin: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area: Area,
+    ):
+        citizen_token = get_token(client, citizen.email)
+        admin_token = get_token(client, admin.email)
+
+        report = post_report(
+            client, citizen_token, category, governorate, area
+        )
+
+        priority_resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/priority",
+            json={"priority": "urgent"},
+            headers=auth_header(admin_token),
+        )
+        assert priority_resp.status_code == 200, priority_resp.json()
+
+        resp = client.get(
+            "/api/v1/admin/dashboard",
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["urgent_reports"] >= 1
