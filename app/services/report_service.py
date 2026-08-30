@@ -35,10 +35,10 @@ from app.schemas.report import (
 # ---------------------------------------------------------------------------
 
 EMPLOYEE_TRANSITIONS: dict[ReportStatus, list[ReportStatus]] = {
-    ReportStatus.submitted: [ReportStatus.under_review],
+    ReportStatus.submitted: [ReportStatus.under_review, ReportStatus.rejected],
     ReportStatus.under_review: [ReportStatus.assigned, ReportStatus.rejected],
-    ReportStatus.assigned: [ReportStatus.in_progress],
-    ReportStatus.in_progress: [ReportStatus.resolved, ReportStatus.rejected],
+    ReportStatus.assigned: [ReportStatus.in_progress, ReportStatus.under_review],
+    ReportStatus.in_progress: [ReportStatus.resolved, ReportStatus.assigned],
     ReportStatus.resolved: [],
     ReportStatus.rejected: [],
     ReportStatus.cancelled: [],
