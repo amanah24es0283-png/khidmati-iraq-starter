@@ -445,3 +445,165 @@ class TestUrgentReports:
 
         assert resp.status_code == 200, resp.json()
         assert resp.json()["urgent_reports"] >= 1
+
+# ---------------------------------------------------------------------------
+# TASK-04 — Admin report assignment
+# ---------------------------------------------------------------------------
+
+class TestAdminReportAssignment:
+
+    def test_admin_assigns_valid_employee(
+        self, client, admin, employee, citizen, category, governorate, area
+    ):
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": employee.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["assigned_employee_id"] == employee.id
+        assert resp.json()["status"] == "assigned"
+
+    def test_assignment_rejects_cross_governorate_employee(
+        self, client, admin, employee2, citizen, category, governorate, area
+    ):
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": employee2.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "EMPLOYEE_GOVERNORATE_MISMATCH"
+
+    def test_assignment_rejects_citizen(
+        self, client, admin, citizen, category, governorate, area
+    ):
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": citizen.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "NOT_EMPLOYEE"
+
+    def test_assignment_rejects_inactive_employee(
+        self, client, db, admin, employee, citizen, category, governorate, area
+    ):
+        employee.is_active = False
+        db.commit()
+
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": employee.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "INACTIVE_EMPLOYEE"
+
+    def test_assignment_rejects_nonexistent_employee(
+        self, client, admin, citizen, category, governorate, area
+    ):
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": 999999},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 404
+
+    def test_assignment_rejects_nonexistent_report(
+        self, client, admin, employee
+    ):
+        admin_token = get_token(client, admin.email)
+
+        resp = client.patch(
+            "/api/v1/admin/reports/999999/assign",
+            json={"employee_id": employee.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 404
+
+    def test_assignment_creates_status_history(
+        self, client, db, admin, employee, citizen, category, governorate, area
+    ):
+        admin_token = get_token(client, admin.email)
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/admin/reports/{report['id']}/assign",
+            json={"employee_id": employee.id},
+            headers=auth_header(admin_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        from app.models.status_history import ReportStatusHistory
+
+        history = (
+            db.query(ReportStatusHistory)
+            .filter(ReportStatusHistory.report_id == report["id"])
+            .order_by(ReportStatusHistory.id.desc())
+            .first()
+        )
+
+        assert history is not None
+        assert history.previous_status == "submitted"
+        assert history.new_status == "assigned"
+        assert history.changed_by_id == admin.id
+
