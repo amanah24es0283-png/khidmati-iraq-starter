@@ -135,6 +135,7 @@ def list_reports(
         )
 
     total = query.count()
+    total_pages = (total + page_size - 1) // page_size
     items = (
         query.order_by(Report.created_at.desc())
         .offset((page - 1) * page_size)
@@ -146,6 +147,7 @@ def list_reports(
         page=page,
         page_size=page_size,
         total=total,
+        total_pages=total_pages,
         items=[ReportResponse.model_validate(r) for r in items],
     )
 
