@@ -399,10 +399,10 @@ Citizens can cancel a report that is in `submitted` or `under_review` status.
 | POST   | /api/v1/admin/employees              | Create employee          |
 | GET    | /api/v1/admin/users                  | List all users           |
 | PATCH  | /api/v1/admin/users/{id}/status      | Toggle user status       |
-| GET    | /api/v1/admin/reports                | List reports (filtered)  |
+| GET    | /api/v1/admin/reports                | List reports with filtering, search, pagination, and urgent_only |
 | PATCH  | /api/v1/admin/reports/{id}/assign    | Assign employee          |
 | PATCH  | /api/v1/admin/reports/{id}/priority  | Change priority          |
-| GET    | /api/v1/admin/dashboard              | Dashboard statistics     |
+| GET    | /api/v1/admin/dashboard              | Dashboard statistics including urgent_reports including urgent_reports |
 
 ---
 
