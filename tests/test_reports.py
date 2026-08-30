@@ -607,3 +607,500 @@ class TestAdminReportAssignment:
         assert history.new_status == "assigned"
         assert history.changed_by_id == admin.id
 
+
+# ---------------------------------------------------------------------------
+# TASK-05 — Report Status Workflow
+# ---------------------------------------------------------------------------
+
+class TestReportStatusWorkflow:
+
+    def test_employee_valid_status_transition(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        # submitted -> under_review
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review"},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["status"] == "under_review"
+
+
+    def test_employee_invalid_status_transition(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        # submitted -> resolved is not allowed
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "resolved"},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "INVALID_STATUS_TRANSITION"
+
+
+    def test_employee_status_change_creates_history(
+        self, client, db, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review", "note": "Started review."},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        from app.models.status_history import ReportStatusHistory
+
+        history = (
+            db.query(ReportStatusHistory)
+            .filter(ReportStatusHistory.report_id == report["id"])
+            .order_by(ReportStatusHistory.id.desc())
+            .first()
+        )
+
+        assert history is not None
+        assert history.previous_status == "submitted"
+        assert history.new_status == "under_review"
+        assert history.changed_by_id == employee.id
+
+
+    def test_invalid_transition_does_not_change_status(
+        self, client, db, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "resolved"},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 400
+
+        from app.models.report import Report
+
+        db.expire_all()
+        stored_report = db.get(Report, report["id"])
+
+        assert stored_report.status.value == "submitted"
+
+
+    def test_citizen_can_cancel_submitted_report(
+        self, client, citizen, category, governorate, area
+    ):
+        citizen_token = get_token(client, citizen.email)
+
+        report = post_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.post(
+            f"/api/v1/reports/{report['id']}/cancel",
+            headers=auth_header(citizen_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["status"] == "cancelled"
+
+
+    def test_citizen_cancel_creates_history(
+        self, client, db, citizen, category, governorate, area
+    ):
+        citizen_token = get_token(client, citizen.email)
+
+        report = post_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.post(
+            f"/api/v1/reports/{report['id']}/cancel",
+            headers=auth_header(citizen_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        from app.models.status_history import ReportStatusHistory
+
+        history = (
+            db.query(ReportStatusHistory)
+            .filter(ReportStatusHistory.report_id == report["id"])
+            .order_by(ReportStatusHistory.id.desc())
+            .first()
+        )
+
+        assert history is not None
+        assert history.previous_status == "submitted"
+        assert history.new_status == "cancelled"
+        assert history.changed_by_id == citizen.id
+
+
+    def test_citizen_cannot_cancel_non_cancellable_report(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        citizen_token = get_token(client, citizen.email)
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area,
+        )
+
+        # submitted -> under_review
+        transition = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review"},
+            headers=auth_header(employee_token),
+        )
+
+        assert transition.status_code == 200, transition.json()
+
+        # under_review is cancellable, so move to assigned first.
+        transition = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "assigned"},
+            headers=auth_header(employee_token),
+        )
+
+        assert transition.status_code == 200, transition.json()
+
+        resp = client.post(
+            f"/api/v1/reports/{report['id']}/cancel",
+            headers=auth_header(citizen_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "CANNOT_CANCEL"
+
+
+    def test_employee_cannot_update_report_outside_governorate(
+        self, client, employee2, citizen, category, governorate, area):
+        employee2_token = get_token(client, employee2.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review"},
+            headers=auth_header(employee2_token),
+        )
+
+        assert resp.status_code == 403
+
+
+    def test_status_history_is_created_for_successful_transition(
+        self, client, db, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review"},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200
+
+        from app.models.status_history import ReportStatusHistory
+
+        histories = (
+            db.query(ReportStatusHistory)
+            .filter(ReportStatusHistory.report_id == report["id"])
+            .order_by(ReportStatusHistory.id.asc())
+            .all()
+        )
+
+        assert len(histories) >= 2
+
+        latest = histories[-1]
+        assert latest.previous_status == "submitted"
+        assert latest.new_status == "under_review"
+        assert latest.changed_by_id == employee.id
+
+# ---------------------------------------------------------------------------
+# TASK-07 — Complete Report Resolution
+# ---------------------------------------------------------------------------
+
+class TestReportResolution:
+
+    def _move_report_to_in_progress(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+        citizen_token = get_token(client, citizen.email)
+
+        report = post_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area,
+        )
+
+        # submitted -> under_review
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "under_review"},
+            headers=auth_header(employee_token),
+        )
+        assert resp.status_code == 200, resp.json()
+
+        # under_review -> assigned
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "assigned"},
+            headers=auth_header(employee_token),
+        )
+        assert resp.status_code == 200, resp.json()
+
+        # assigned -> in_progress
+        resp = client.patch(
+            f"/api/v1/employee/reports/{report['id']}/status",
+            json={"new_status": "in_progress"},
+            headers=auth_header(employee_token),
+        )
+        assert resp.status_code == 200, resp.json()
+
+        return report, employee_token
+
+
+    def test_resolve_without_summary_fails(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 422
+
+
+    def test_resolve_with_blank_summary_fails(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={"resolution_summary": "          "},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 422
+
+
+    def test_resolve_with_short_summary_fails(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={"resolution_summary": "fixed"},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 422
+
+
+    def test_resolve_invalid_status_fails(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        employee_token = get_token(client, employee.email)
+
+        report = post_report(
+            client,
+            get_token(client, citizen.email),
+            category,
+            governorate,
+            area,
+        )
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={
+                "resolution_summary": "The reported issue was fixed successfully."
+            },
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["error"]["code"] == "REPORT_NOT_RESOLVABLE"
+
+
+    def test_unauthorized_employee_cannot_resolve(
+        self, client, employee, employee2, citizen, category, governorate, area
+    ):
+        report, _ = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        employee2_token = get_token(client, employee2.email)
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={
+                "resolution_summary": "The reported issue was fixed successfully."
+            },
+            headers=auth_header(employee2_token),
+        )
+
+        assert resp.status_code == 403
+
+
+    def test_valid_resolution_succeeds(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        summary = "The reported issue was fixed successfully."
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={"resolution_summary": summary},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+        assert resp.json()["status"] == "resolved"
+        assert resp.json()["resolution_summary"] == summary
+        assert resp.json()["resolved_at"] is not None
+
+
+    def test_resolution_creates_status_history(
+        self, client, db, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        summary = "The reported issue was fixed successfully."
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={"resolution_summary": summary},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200, resp.json()
+
+        from app.models.status_history import ReportStatusHistory
+
+        history = (
+            db.query(ReportStatusHistory)
+            .filter(ReportStatusHistory.report_id == report["id"])
+            .order_by(ReportStatusHistory.id.desc())
+            .first()
+        )
+
+        assert history is not None
+        assert history.previous_status == "in_progress"
+        assert history.new_status == "resolved"
+        assert history.changed_by_id == employee.id
+
+
+    def test_resolution_is_visible_to_citizen(
+        self, client, employee, citizen, category, governorate, area
+    ):
+        report, employee_token = self._move_report_to_in_progress(
+            client, employee, citizen, category, governorate, area
+        )
+
+        summary = "The reported issue was fixed successfully."
+
+        resp = client.post(
+            f"/api/v1/employee/reports/{report['id']}/resolve",
+            json={"resolution_summary": summary},
+            headers=auth_header(employee_token),
+        )
+
+        assert resp.status_code == 200
+
+        citizen_token = get_token(client, citizen.email)
+
+        citizen_resp = client.get(
+            f"/api/v1/reports/{report['id']}",
+            headers=auth_header(citizen_token),
+        )
+
+        assert citizen_resp.status_code == 200, citizen_resp.json()
+        assert citizen_resp.json()["status"] == "resolved"
+        assert citizen_resp.json()["resolution_summary"] == summary
+        assert citizen_resp.json()["resolved_at"] is not None
