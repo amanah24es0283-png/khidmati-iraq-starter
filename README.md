@@ -402,7 +402,7 @@ Citizens can cancel a report that is in `submitted` or `under_review` status.
 | GET    | /api/v1/admin/reports                | List reports with filtering, search, pagination, and urgent_only |
 | PATCH  | /api/v1/admin/reports/{id}/assign    | Assign employee          |
 | PATCH  | /api/v1/admin/reports/{id}/priority  | Change priority          |
-| GET    | /api/v1/admin/dashboard              | Dashboard statistics including urgent_reports including urgent_reports |
+| GET    | /api/v1/admin/dashboard              | Dashboard statistics including urgent_reports |
 
 ---
 
