@@ -50,13 +50,13 @@ class ConflictError(HTTPException):
 
 
 # ---------------------------------------------------------------------------
-# 422 – Invalid status transition
+# 400 – Invalid status transition
 # ---------------------------------------------------------------------------
 
 class InvalidStatusTransitionError(HTTPException):
     def __init__(self, from_status: str, to_status: str):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=_make_detail(
                 "INVALID_STATUS_TRANSITION",
                 f"Cannot transition from '{from_status}' to '{to_status}'.",
