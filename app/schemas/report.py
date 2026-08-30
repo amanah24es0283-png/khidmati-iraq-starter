@@ -6,7 +6,7 @@ Pydantic v2 schemas for reports, filters, and pagination.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import field_validator,  BaseModel, Field
 
 from app.models.report import ReportPriority, ReportStatus
 from app.schemas.category import CategoryResponse
@@ -56,6 +56,13 @@ class PriorityUpdateRequest(BaseModel):
 class ResolveRequest(BaseModel):
     """Employee resolves a report – resolution summary is required."""
     resolution_summary: str = Field(min_length=10)
+
+    @field_validator("resolution_summary")
+    @classmethod
+    def validate_resolution_summary(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Resolution summary cannot be blank.")
+        return value.strip()
 
 
 # ---------------------------------------------------------------------------
