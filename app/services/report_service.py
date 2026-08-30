@@ -350,7 +350,14 @@ def admin_assign_report(
     )
     
     report.assigned_employee_id = employee.id
-    report.status = ReportStatus.assigned
+
+    record_status_change(
+        db,
+        report,
+        ReportStatus.assigned,
+        admin,
+        note="Report assigned to employee.",
+    )
     
     
     db.commit()
