@@ -13,3 +13,4 @@ build/
 htmlcov/
 .coverage
 *.log
+openapi.json
