@@ -295,6 +295,18 @@ def seed():
                 "priority": ReportPriority.medium,
                 "employee": emp_baghdad,
             },
+            {
+                "citizen": citizen1,
+                "category": cat_map["Water"],
+                "governorate": baghdad,
+                "area": karkh,
+                "title": "Water outage in the residential area",
+                "description": "The water supply has been interrupted in the residential area for a full day and requires urgent attention.",
+                "address_details": "Residential area, near the health center",
+                "status": ReportStatus.submitted,
+                "priority": ReportPriority.medium,
+                "employee": None,
+            },
         ]
 
         created_reports = []
