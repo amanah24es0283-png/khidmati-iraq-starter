@@ -240,6 +240,56 @@ def list_audit_logs(
 # Dashboard
 # ---------------------------------------------------------------------------
 
+@router.get("/dashboard/status-trends")
+def dashboard_status_trends(
+    days: int = Query(default=7, ge=1, le=31),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Return daily report counts grouped by status."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = today_start - timedelta(days=days - 1)
+
+    data = []
+
+    for offset in range(days):
+        day_start = start_date + timedelta(days=offset)
+        day_end = day_start + timedelta(days=1)
+
+        rows = (
+            db.query(Report.status, func.count(Report.id))
+            .filter(
+                Report.created_at >= day_start,
+                Report.created_at < day_end,
+            )
+            .group_by(Report.status)
+            .all()
+        )
+
+        counts = {status.value: count for status, count in rows}
+
+        data.append(
+            {
+                "date": day_start.date().isoformat(),
+                "submitted": counts.get("submitted", 0),
+                "under_review": counts.get("under_review", 0),
+                "assigned": counts.get("assigned", 0),
+                "in_progress": counts.get("in_progress", 0),
+                "resolved": counts.get("resolved", 0),
+                "rejected": counts.get("rejected", 0),
+                "cancelled": counts.get("cancelled", 0),
+            }
+        )
+
+    return {
+        "days": days,
+        "start_date": start_date.date().isoformat(),
+        "end_date": today_start.date().isoformat(),
+        "data": data,
+    }
+
+
 @router.get("/dashboard")
 def dashboard(
     db: Session = Depends(get_db),
