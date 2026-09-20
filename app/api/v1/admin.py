@@ -3,7 +3,7 @@ app/api/v1/admin.py
 Admin-only endpoints for user management, report oversight, and dashboard.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -257,6 +257,38 @@ def dashboard(
 
     open_reports = total_reports - resolved_reports
 
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    reports_today = (
+        db.query(func.count(Report.id))
+        .filter(Report.created_at >= today_start)
+        .scalar()
+        or 0
+    )
+
+    reports_this_week = (
+        db.query(func.count(Report.id))
+        .filter(Report.created_at >= week_start)
+        .scalar()
+        or 0
+    )
+
+    reports_this_month = (
+        db.query(func.count(Report.id))
+        .filter(Report.created_at >= month_start)
+        .scalar()
+        or 0
+    )
+
+    resolution_rate = (
+        round((resolved_reports / total_reports) * 100, 2)
+        if total_reports
+        else 0
+    )
+
     status_rows = (
         db.query(Report.status, func.count(Report.id))
         .group_by(Report.status)
@@ -278,6 +310,10 @@ def dashboard(
         "total_reports": total_reports,
         "open_reports": open_reports,
         "resolved_reports": resolved_reports,
+        "reports_today": reports_today,
+        "reports_this_week": reports_this_week,
+        "reports_this_month": reports_this_month,
+        "resolution_rate": resolution_rate,
         "urgent_reports": db.query(func.count(Report.id)).filter(Report.priority == ReportPriority.urgent).scalar() or 0,
         "reports_by_status": {status.value: count for status, count in status_rows},
         "reports_by_priority": {priority.value: count for priority, count in priority_rows},
