@@ -386,14 +386,24 @@ def admin_assign_report(
 
 
 def admin_update_priority(
-    db: Session, report_id: int, data: PriorityUpdateRequest
+    db: Session, admin: User, report_id: int, data: PriorityUpdateRequest
 ) -> Report:
     """Admin updates the priority of a report."""
     report = db.get(Report, report_id)
     if report is None:
         raise NotFoundError("Report")
 
+    old_priority = report.priority.value
     report.priority = data.priority
+
+    create_audit_log(
+        db,
+        admin,
+        "REPORT_PRIORITY_CHANGED",
+        report_id=report.id,
+        details=f"Priority changed from {old_priority} to {data.priority.value}.",
+    )
+
     db.commit()
     db.refresh(report)
     return report

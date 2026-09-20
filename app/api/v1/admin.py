@@ -170,10 +170,10 @@ def update_priority(
     report_id: int,
     data: PriorityUpdateRequest,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     """Update the priority of a report."""
-    return report_service.admin_update_priority(db, report_id, data)
+    return report_service.admin_update_priority(db, admin, report_id, data)
 
 
 # ---------------------------------------------------------------------------
