@@ -5,7 +5,7 @@ Admin-only endpoints for user management, report oversight, and dashboard.
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import require_admin
 from app.core.exceptions import ConflictError, NotFoundError
@@ -191,7 +191,13 @@ def list_audit_logs(
     _admin: User = Depends(require_admin),
 ):
     """Return audit logs with filtering and pagination."""
-    query = db.query(AuditLog)
+    query = (
+        db.query(AuditLog)
+        .options(
+            joinedload(AuditLog.user),
+            joinedload(AuditLog.report),
+        )
+    )
 
     if user_id is not None:
         query = query.filter(AuditLog.user_id == user_id)
