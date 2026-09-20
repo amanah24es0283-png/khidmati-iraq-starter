@@ -19,6 +19,7 @@ from app.models.category import ServiceCategory
 from app.models.comment import ReportComment
 from app.models.governorate import Governorate
 from app.models.report import Report, ReportPriority, ReportStatus, generate_reference_number
+from app.models.audit_log import AuditLog
 from app.models.status_history import ReportStatusHistory
 from app.models.user import User, UserRole
 from app.schemas.report import (
@@ -31,6 +32,25 @@ from app.schemas.report import (
 )
 
 # ---------------------------------------------------------------------------
+def create_audit_log(
+    db: Session,
+    user: User | None,
+    action: str,
+    report_id: int | None = None,
+    details: str | None = None,
+) -> AuditLog:
+    """Create an audit log entry for an important system action."""
+    audit_log = AuditLog(
+        user_id=user.id if user else None,
+        report_id=report_id,
+        action=action,
+        details=details,
+    )
+    db.add(audit_log)
+    db.flush()
+    return audit_log
+
+
 # Valid status transitions
 # ---------------------------------------------------------------------------
 
