@@ -120,3 +120,79 @@ class TestAuditLogsAPI:
         )
 
         assert response.status_code == 403
+
+    def test_admin_can_filter_audit_logs_from_date(
+        self,
+        client: TestClient,
+        citizen: User,
+        admin: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area,
+    ):
+        from datetime import datetime, timedelta, timezone
+
+        citizen_token = get_token(client, citizen.email)
+        admin_token = get_token(client, admin.email)
+
+        report = create_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area.id,
+        )
+
+        future_date = (
+            datetime.now(timezone.utc) + timedelta(days=1)
+        ).isoformat().replace("+00:00", "Z")
+
+        response = client.get(
+            f"/api/v1/admin/audit-logs?report_id={report['id']}"
+            f"&created_from={future_date}",
+            headers=auth_header(admin_token),
+        )
+
+        assert response.status_code == 200, response.json()
+        assert response.json()["total"] == 0
+
+    def test_admin_can_filter_audit_logs_to_date(
+        self,
+        client: TestClient,
+        citizen: User,
+        admin: User,
+        category: ServiceCategory,
+        governorate: Governorate,
+        area,
+    ):
+        from datetime import datetime, timedelta, timezone
+
+        citizen_token = get_token(client, citizen.email)
+        admin_token = get_token(client, admin.email)
+
+        report = create_report(
+            client,
+            citizen_token,
+            category,
+            governorate,
+            area.id,
+        )
+
+        future_date = (
+            datetime.now(timezone.utc) + timedelta(days=1)
+        ).isoformat().replace("+00:00", "Z")
+
+        response = client.get(
+            f"/api/v1/admin/audit-logs?report_id={report['id']}"
+            f"&created_to={future_date}",
+            headers=auth_header(admin_token),
+        )
+
+        assert response.status_code == 200, response.json()
+
+        data = response.json()
+        assert data["total"] >= 1
+        assert all(
+            item["report_id"] == report["id"]
+            for item in data["items"]
+        )
