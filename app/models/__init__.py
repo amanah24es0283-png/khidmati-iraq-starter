@@ -8,3 +8,4 @@ from app.models.category import ServiceCategory     # noqa: F401
 from app.models.report import Report, ReportStatus, ReportPriority  # noqa: F401
 from app.models.comment import ReportComment        # noqa: F401
 from app.models.status_history import ReportStatusHistory  # noqa: F401
+from app.models.audit_log import AuditLog  # noqa: F401

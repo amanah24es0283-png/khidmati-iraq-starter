@@ -59,3 +59,6 @@ class User(Base):
     comments: Mapped[list["ReportComment"]] = relationship(  # type: ignore[name-defined]
         "ReportComment", back_populates="author"
     )
+    audit_logs: Mapped[list["AuditLog"]] = relationship(
+        "AuditLog", back_populates="user"
+    )
