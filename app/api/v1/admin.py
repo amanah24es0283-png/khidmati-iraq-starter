@@ -12,8 +12,10 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password
 from app.database import get_db
 from app.models.category import ServiceCategory
+from app.models.audit_log import AuditLog
 from app.models.report import Report, ReportPriority, ReportStatus
 from app.models.user import User, UserRole
+from app.schemas.audit_log import AuditLogResponse
 from app.schemas.report import (
     AssignRequest,
     PaginatedResponse,
@@ -172,6 +174,51 @@ def update_priority(
 ):
     """Update the priority of a report."""
     return report_service.admin_update_priority(db, report_id, data)
+
+
+# ---------------------------------------------------------------------------
+# Audit logs
+# ---------------------------------------------------------------------------
+
+@router.get("/audit-logs")
+def list_audit_logs(
+    user_id: int | None = Query(default=None),
+    report_id: int | None = Query(default=None),
+    action: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Return audit logs with filtering and pagination."""
+    query = db.query(AuditLog)
+
+    if user_id is not None:
+        query = query.filter(AuditLog.user_id == user_id)
+
+    if report_id is not None:
+        query = query.filter(AuditLog.report_id == report_id)
+
+    if action:
+        query = query.filter(AuditLog.action == action)
+
+    total = query.count()
+    total_pages = (total + page_size - 1) // page_size
+
+    items = (
+        query.order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "items": [AuditLogResponse.model_validate(log) for log in items],
+    }
 
 
 # ---------------------------------------------------------------------------
