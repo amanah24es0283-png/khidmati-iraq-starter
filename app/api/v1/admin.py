@@ -3,6 +3,7 @@ app/api/v1/admin.py
 Admin-only endpoints for user management, report oversight, and dashboard.
 """
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -185,6 +186,8 @@ def list_audit_logs(
     user_id: int | None = Query(default=None),
     report_id: int | None = Query(default=None),
     action: str | None = Query(default=None),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -207,6 +210,12 @@ def list_audit_logs(
 
     if action:
         query = query.filter(AuditLog.action == action)
+
+    if created_from is not None:
+        query = query.filter(AuditLog.created_at >= created_from)
+
+    if created_to is not None:
+        query = query.filter(AuditLog.created_at <= created_to)
 
     total = query.count()
     total_pages = (total + page_size - 1) // page_size
