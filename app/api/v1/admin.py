@@ -319,3 +319,49 @@ def dashboard(
         "reports_by_priority": {priority.value: count for priority, count in priority_rows},
         "reports_by_category": {name: count for name, count in category_rows},
     }
+
+
+# ---------------------------------------------------------------------------
+# Dashboard trends
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard/trends")
+def dashboard_trends(
+    days: int = Query(default=7, ge=1, le=31),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Return daily report counts for the requested number of days."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = today_start - timedelta(days=days - 1)
+
+    trends = []
+
+    for offset in range(days):
+        day_start = start_date + timedelta(days=offset)
+        day_end = day_start + timedelta(days=1)
+
+        count = (
+            db.query(func.count(Report.id))
+            .filter(
+                Report.created_at >= day_start,
+                Report.created_at < day_end,
+            )
+            .scalar()
+            or 0
+        )
+
+        trends.append(
+            {
+                "date": day_start.date().isoformat(),
+                "count": count,
+            }
+        )
+
+    return {
+        "days": days,
+        "start_date": start_date.date().isoformat(),
+        "end_date": today_start.date().isoformat(),
+        "data": trends,
+    }
