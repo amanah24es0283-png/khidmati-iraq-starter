@@ -156,12 +156,21 @@ def create_report(db: Session, citizen: User, data: ReportCreate) -> Report:
     db.flush()  # Get report.id before recording history.
 
     record_status_change(
-    db,
-    report,
-    ReportStatus.submitted,
-    citizen,
-    note="Report submitted.",
-)
+        db,
+        report,
+        ReportStatus.submitted,
+        citizen,
+        note="Report submitted.",
+    )
+
+    create_audit_log(
+        db,
+        citizen,
+        "REPORT_CREATED",
+        report_id=report.id,
+        details="Report created by citizen.",
+    )
+
     db.commit()
     db.refresh(report)
     return report
