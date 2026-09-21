@@ -1,6 +1,8 @@
 import { Bell, ChevronLeft, FileText, Home, LogOut, Menu, Settings, ShieldCheck, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import './App.css'
+import Login from './Login'
+import { clearSession, getToken, getUser } from './auth'
 
 const navigation = [
   { label: 'الرئيسية', icon: Home, active: true },
@@ -26,6 +28,17 @@ const recentReports = [
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [user, setUser] = useState(getUser)
+  const [token] = useState(getToken)
+
+  if (!token || !user) {
+    return <Login onLogin={setUser} />
+  }
+
+  function handleLogout() {
+    clearSession()
+    setUser(null)
+  }
 
   return (
     <div className="app-shell" dir="rtl">
@@ -80,7 +93,7 @@ function App() {
             </div>
           </div>
 
-          <button className="logout-button">
+          <button className="logout-button" onClick={handleLogout}>
             <LogOut size={18} />
             تسجيل الخروج
           </button>
@@ -109,11 +122,11 @@ function App() {
             </button>
 
             <div className="user-chip">
-              <div className="avatar">م</div>
+              <div className="avatar">{user.full_name?.charAt(0) || "خ"}</div>
 
               <div className="user-info">
-                <strong>مدير النظام</strong>
-                <span>Admin</span>
+                <strong>{user.full_name}</strong>
+                <span>{user.role}</span>
               </div>
             </div>
           </div>
@@ -123,7 +136,7 @@ function App() {
           <div>
             <span className="welcome-label">أهلاً بك 👋</span>
 
-            <h2>إدارة خدمتي العراق</h2>
+            <h2>أهلاً {user.full_name}</h2>
 
             <p>
               تابع البلاغات والخدمات العامة من مكان واحد، وراقب أداء المنصة
