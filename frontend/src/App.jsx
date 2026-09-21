@@ -364,6 +364,8 @@ function App() {
 
         {activePage === 'البلاغات' ? (
           <ReportsPage />
+        ) : activePage === 'المستخدمون' ? (
+          <UsersPage />
         ) : (
           <>
         <section className="welcome-card">
@@ -601,6 +603,197 @@ function App() {
   )
 }
 
+
+
+function UsersPage() {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [updatingId, setUpdatingId] = useState(null)
+
+  async function loadUsers() {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await api.get('/admin/users')
+      setUsers(response.data || [])
+    } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        setError('ليس لديك صلاحية للوصول إلى المستخدمين.')
+      } else {
+        setError('تعذر تحميل المستخدمين. تأكدي من تشغيل الـBackend.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchUsers() {
+      try {
+        setLoading(true)
+        setError('')
+        const response = await api.get('/admin/users')
+
+        if (!cancelled) {
+          setUsers(response.data || [])
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          if (requestError.response?.status === 403) {
+            setError('ليس لديك صلاحية للوصول إلى المستخدمين.')
+          } else {
+            setError('تعذر تحميل المستخدمين. تأكدي من تشغيل الـBackend.')
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchUsers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function toggleUserStatus(userId) {
+    try {
+      setUpdatingId(userId)
+      setError('')
+      const response = await api.patch(`/admin/users/${userId}/status`)
+
+      setUsers((currentUsers) =>
+        currentUsers.map((item) =>
+          item.id === userId ? response.data : item
+        )
+      )
+    } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        setError('ليس لديك صلاحية لتغيير حالة المستخدم.')
+      } else {
+        setError('تعذر تحديث حالة المستخدم.')
+      }
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const roleLabels = {
+    citizen: 'مواطن',
+    employee: 'موظف',
+    admin: 'مدير',
+  }
+
+  return (
+    <section className="users-page">
+      <div className="page-intro">
+        <div>
+          <span className="eyebrow">إدارة الخدمات</span>
+          <h2>المستخدمون</h2>
+          <p>إدارة حسابات المستخدمين ومتابعة أدوارهم وحالة الوصول إلى المنصة.</p>
+        </div>
+
+        <div className="page-count-card">
+          <strong>{users.length}</strong>
+          <span>مستخدم</span>
+        </div>
+      </div>
+
+      {error && <div className="reports-error">{error}</div>}
+
+      <div className="users-panel panel">
+        <div className="panel-heading">
+          <div>
+            <h3>قائمة المستخدمين</h3>
+            <span>{users.length} حساب مسجل</span>
+          </div>
+
+          <button className="secondary-button" type="button" onClick={loadUsers}>
+            تحديث
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="empty-state">جاري تحميل المستخدمين...</div>
+        ) : users.length === 0 ? (
+          <div className="empty-state">لا يوجد مستخدمون.</div>
+        ) : (
+          <div className="users-table-wrap">
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th>المستخدم</th>
+                  <th>البريد الإلكتروني</th>
+                  <th>الهاتف</th>
+                  <th>الدور</th>
+                  <th>الحالة</th>
+                  <th>تاريخ التسجيل</th>
+                  <th>الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="user-cell">
+                        <div className="user-avatar">
+                          {(item.full_name || 'م').trim().charAt(0)}
+                        </div>
+                        <div>
+                          <strong>{item.full_name}</strong>
+                          <span>#{item.id}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>{item.email}</td>
+                    <td>{item.phone_number || '—'}</td>
+
+                    <td>
+                      <span className="role-badge">
+                        {roleLabels[item.role] || item.role}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span className={`user-status ${item.is_active ? 'active' : 'inactive'}`}>
+                        <span className="status-dot" />
+                        {item.is_active ? 'نشط' : 'متوقف'}
+                      </span>
+                    </td>
+
+                    <td>{formatDate(item.created_at)}</td>
+
+                    <td>
+                      <button
+                        className={`user-action-button ${item.is_active ? 'danger' : 'success'}`}
+                        type="button"
+                        disabled={updatingId === item.id}
+                        onClick={() => toggleUserStatus(item.id)}
+                      >
+                        {updatingId === item.id
+                          ? 'جاري التحديث...'
+                          : item.is_active
+                            ? 'تعطيل'
+                            : 'تفعيل'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
 
 function ReportsPage() {
   const [reports, setReports] = useState([])
