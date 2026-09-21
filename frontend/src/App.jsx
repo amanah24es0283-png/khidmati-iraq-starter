@@ -366,6 +366,10 @@ function App() {
           <ReportsPage />
         ) : activePage === 'المستخدمون' ? (
           <UsersPage />
+        ) : activePage === 'سجل التدقيق' ? (
+          <AuditLogsPage />
+        ) : activePage === 'الإعدادات' ? (
+          <SettingsPage />
         ) : (
           <>
         <section className="welcome-card">
@@ -604,6 +608,277 @@ function App() {
 }
 
 
+
+function AuditLogsPage() {
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchLogs() {
+      try {
+        setLoading(true)
+        setError('')
+
+        const response = await api.get('/admin/audit-logs')
+        const data = response.data
+
+        if (!cancelled) {
+          setLogs(data?.items || data || [])
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(
+            requestError.response?.status === 403
+              ? 'ليس لديك صلاحية للوصول إلى سجل التدقيق.'
+              : 'تعذر تحميل سجل التدقيق. تأكدي من تشغيل الـBackend.'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchLogs()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function loadLogs() {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await api.get('/admin/audit-logs')
+      const data = response.data
+      setLogs(data?.items || data || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.status === 403
+          ? 'ليس لديك صلاحية للوصول إلى سجل التدقيق.'
+          : 'تعذر تحميل سجل التدقيق.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const actionLabels = {
+    REPORT_CREATED: 'إنشاء بلاغ',
+    REPORT_STATUS_CHANGED: 'تغيير حالة البلاغ',
+    REPORT_RESOLVED: 'حل بلاغ',
+    INTERNAL_NOTE_ADDED: 'إضافة ملاحظة داخلية',
+    REPORT_ASSIGNED: 'تعيين بلاغ',
+    REPORT_PRIORITY_CHANGED: 'تغيير أولوية البلاغ',
+  }
+
+  return (
+    <section className="audit-page">
+      <div className="page-intro">
+        <div>
+          <span className="eyebrow">الأمان والمراقبة</span>
+          <h2>سجل التدقيق</h2>
+          <p>متابعة العمليات المهمة التي تمت داخل المنصة وتسجيل المستخدم والوقت ونوع الإجراء.</p>
+        </div>
+
+        <div className="page-count-card">
+          <strong>{logs.length}</strong>
+          <span>عملية</span>
+        </div>
+      </div>
+
+      {error && <div className="reports-error">{error}</div>}
+
+      <div className="audit-panel panel">
+        <div className="panel-heading">
+          <div>
+            <h3>آخر العمليات</h3>
+            <span>{logs.length} سجل متاح</span>
+          </div>
+
+          <button className="secondary-button" type="button" onClick={loadLogs}>
+            تحديث
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="empty-state">جاري تحميل سجل التدقيق...</div>
+        ) : logs.length === 0 ? (
+          <div className="empty-state">لا توجد عمليات مسجلة حالياً.</div>
+        ) : (
+          <div className="audit-table-wrap">
+            <table className="audit-table">
+              <thead>
+                <tr>
+                  <th>الإجراء</th>
+                  <th>المستخدم</th>
+                  <th>البلاغ</th>
+                  <th>التاريخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td>
+                      <span className="audit-action">
+                        {actionLabels[log.action] || log.action || '—'}
+                      </span>
+                    </td>
+                    <td>{log.user_id || 'النظام'}</td>
+                    <td>{log.report_id ? `#${log.report_id}` : '—'}</td>
+                    <td>{formatDate(log.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function SettingsPage() {
+  const [theme, setTheme] = useState(
+    localStorage.getItem('khidmati_theme') ||
+      document.documentElement.dataset.theme ||
+      'beige'
+  )
+
+  const user = getUser()
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('khidmati_theme', theme)
+  }, [theme])
+
+  function changeTheme(nextTheme) {
+    setTheme(nextTheme)
+  }
+
+  function handleLogout() {
+    clearSession()
+    window.location.reload()
+  }
+
+  const themeLabels = {
+    beige: 'بيج',
+    olive: 'زيتي',
+    dark: 'داكن',
+  }
+
+  return (
+    <section className="settings-page">
+      <div className="page-intro">
+        <div>
+          <span className="eyebrow">تخصيص المنصة</span>
+          <h2>الإعدادات</h2>
+          <p>إدارة مظهر المنصة ومراجعة معلومات الحساب والجلسة الحالية.</p>
+        </div>
+      </div>
+
+      <div className="settings-grid">
+        <div className="settings-card panel">
+          <div className="settings-card-heading">
+            <div>
+              <h3>مظهر المنصة</h3>
+              <span>اختاري المظهر المناسب لكِ.</span>
+            </div>
+          </div>
+
+          <div className="theme-options">
+            {Object.entries(themeLabels).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`theme-option ${theme === value ? 'selected' : ''}`}
+                onClick={() => changeTheme(value)}
+              >
+                <span className={`theme-preview ${value}`} />
+                <span>{label}</span>
+                {theme === value && <strong>✓</strong>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-card panel">
+          <div className="settings-card-heading">
+            <div>
+              <h3>الحساب الحالي</h3>
+              <span>معلومات الجلسة المسجلة.</span>
+            </div>
+          </div>
+
+          <div className="account-info">
+            <div className="account-row">
+              <span>الاسم</span>
+              <strong>{user?.full_name || 'غير متوفر'}</strong>
+            </div>
+
+            <div className="account-row">
+              <span>البريد الإلكتروني</span>
+              <strong>{user?.email || 'غير متوفر'}</strong>
+            </div>
+
+            <div className="account-row">
+              <span>الدور</span>
+              <strong>
+                {user?.role === 'admin'
+                  ? 'مدير النظام'
+                  : user?.role === 'employee'
+                    ? 'موظف'
+                    : 'مواطن'}
+              </strong>
+            </div>
+
+            <div className="account-row">
+              <span>الحالة</span>
+              <strong className="account-active">
+                {user?.is_active ? 'نشط' : 'متوقف'}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-card panel">
+          <div className="settings-card-heading">
+            <div>
+              <h3>الاتصال بالنظام</h3>
+              <span>عنوان الـAPI المستخدم من الواجهة.</span>
+            </div>
+          </div>
+
+          <div className="api-address">
+            {import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api/v1'}
+          </div>
+        </div>
+
+        <div className="settings-card panel danger-card">
+          <div className="settings-card-heading">
+            <div>
+              <h3>الجلسة</h3>
+              <span>إنهاء جلسة المدير الحالية.</span>
+            </div>
+          </div>
+
+          <button
+            className="logout-settings-button"
+            type="button"
+            onClick={handleLogout}
+          >
+            تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 function UsersPage() {
   const [users, setUsers] = useState([])
