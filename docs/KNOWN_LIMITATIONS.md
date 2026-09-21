@@ -29,3 +29,11 @@ Possible future improvements include:
 ## Conclusion
 
 These limitations do not prevent the current automated test suite from passing. They are documented as areas for future improvement rather than unresolved test failures.
+
+## Frontend Performance
+
+The production frontend build currently reports a bundle-size warning because the main JavaScript chunk is larger than 500 kB. The application remains functional. Future optimization can use code splitting and lazy loading.
+
+## Production Deployment
+
+The current system is prepared as an educational project and local demonstration environment. Production deployment would require HTTPS, production secrets, infrastructure configuration, monitoring, backups, and additional deployment hardening.

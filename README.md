@@ -1,4 +1,4 @@
-# Khidmati Iraq – Backend API
+# Khidmati Iraq – Citizen Service Platform
 
 A platform where Iraqi citizens can report public-service problems such as electricity outages, water problems, damaged roads, waste accumulation, broken streetlights, and sewage issues.
 
@@ -171,6 +171,22 @@ uvicorn app.main:app --reload
 ```
 
 The API will be available at: `http://127.0.0.1:8000`
+
+---
+
+## Frontend
+
+The project includes a React/Vite frontend in `frontend/`.
+
+Run the frontend with:
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0
+```
+
+The frontend includes citizen reports, admin dashboard, report tracking, audit logs, timeline, notifications, and responsive interface.
 
 ---
 
@@ -403,6 +419,17 @@ Citizens can cancel a report that is in `submitted` or `under_review` status.
 | PATCH  | /api/v1/admin/reports/{id}/assign    | Assign employee          |
 | PATCH  | /api/v1/admin/reports/{id}/priority  | Change priority          |
 | GET    | /api/v1/admin/dashboard              | Dashboard statistics including urgent_reports |
+
+---
+
+### Notifications
+
+Citizen notifications are generated automatically when report status changes.
+
+Available endpoints:
+- `GET /api/v1/notifications`
+- `GET /api/v1/notifications/unread-count`
+- `PATCH /api/v1/notifications/{notification_id}/read`
 
 ---
 
