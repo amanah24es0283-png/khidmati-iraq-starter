@@ -100,6 +100,15 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [user, setUser] = useState(getUser)
   const [token, setToken] = useState(getToken)
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem('khidmati_theme') || 'blue'
+  )
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('khidmati_theme', theme)
+  }, [theme])
+
 
   const [dashboard, setDashboard] = useState(null)
   const [trendData, setTrendData] = useState([])
@@ -302,6 +311,32 @@ function App() {
           </div>
 
           <div className="topbar-actions">
+            <div className="theme-switcher" aria-label="اختيار ألوان الواجهة">
+              <button
+                className={`theme-dot theme-blue ${theme === 'blue' ? 'selected' : ''}`}
+                onClick={() => setTheme('blue')}
+                aria-label="أزرق"
+                title="أزرق"
+              />
+              <button
+                className={`theme-dot theme-beige ${theme === 'beige' ? 'selected' : ''}`}
+                onClick={() => setTheme('beige')}
+                aria-label="بيج"
+                title="بيج"
+              />
+              <button
+                className={`theme-dot theme-olive ${theme === 'olive' ? 'selected' : ''}`}
+                onClick={() => setTheme('olive')}
+                aria-label="زيتي"
+                title="زيتي"
+              />
+              <button
+                className={`theme-dot theme-dark ${theme === 'dark' ? 'selected' : ''}`}
+                onClick={() => setTheme('dark')}
+                aria-label="داكن"
+                title="داكن"
+              />
+            </div>
             <button className="icon-button notification" aria-label="الإشعارات">
               <Bell size={20} />
               <span />
