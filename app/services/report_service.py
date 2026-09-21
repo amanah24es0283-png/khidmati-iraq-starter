@@ -379,6 +379,33 @@ def add_comment(
 # Admin actions
 # ---------------------------------------------------------------------------
 
+def admin_update_status(
+    db: Session, admin: User, report_id: int, data: StatusUpdateRequest
+) -> Report:
+    """Admin updates report status and records the change."""
+    report = db.get(Report, report_id)
+
+    if report is None:
+        raise NotFoundError("Report")
+
+    validate_transition(report.status, data.new_status)
+
+    if report.status == data.new_status:
+        return report
+
+    record_status_change(
+        db,
+        report,
+        data.new_status,
+        admin,
+        note="Report status updated by admin.",
+    )
+
+    db.commit()
+    db.refresh(report)
+    return report
+
+
 def admin_assign_report(
     db: Session, admin: User, report_id: int, data: AssignRequest
 ) -> Report:

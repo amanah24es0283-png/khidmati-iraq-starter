@@ -23,6 +23,7 @@ from app.schemas.report import (
     PriorityUpdateRequest,
     ReportDetailResponse,
     ReportResponse,
+    StatusUpdateRequest,
 )
 from app.schemas.user import CreateEmployeeRequest, UserPublic
 from app.services import report_service
@@ -202,6 +203,17 @@ def update_priority(
     """Update the priority of a report."""
     return report_service.admin_update_priority(db, admin, report_id, data)
 
+
+
+@router.patch("/reports/{report_id}/status", response_model=ReportResponse)
+def update_report_status(
+    report_id: int,
+    data: StatusUpdateRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin updates the status of a report."""
+    return report_service.admin_update_status(db, admin, report_id, data)
 
 # ---------------------------------------------------------------------------
 # Audit logs

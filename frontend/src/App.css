@@ -3466,3 +3466,44 @@ footer {
     max-width: none;
   }
 }
+
+
+.report-edit-section {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--surface-soft);
+}
+
+.report-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.report-edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.report-edit-grid label span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.report-edit-grid select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+@media (max-width: 700px) {
+  .report-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}

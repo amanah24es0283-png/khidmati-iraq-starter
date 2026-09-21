@@ -1099,6 +1099,12 @@ function ReportsPage() {
   const [reportDetails, setReportDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState('')
+  const [employees, setEmployees] = useState([])
+  const [savingAction, setSavingAction] = useState(false)
+  const [editStatus, setEditStatus] = useState('')
+  const [editPriority, setEditPriority] = useState('')
+  const [editEmployee, setEditEmployee] = useState('')
+
 
   async function loadReports(currentPage = 1, filters = {}) {
     try {
@@ -1185,6 +1191,10 @@ function ReportsPage() {
     try {
       const response = await api.get(`/admin/reports/${report.id}`)
       setReportDetails(response.data)
+    setEditStatus(response.data.status || '')
+    setEditPriority(response.data.priority || '')
+    setEditEmployee(response.data.assigned_employee_id || '')
+
     } catch (requestError) {
       if (requestError.response?.status === 403) {
         setDetailsError('ليس لديك صلاحية لعرض تفاصيل هذا البلاغ.')
@@ -1198,7 +1208,54 @@ function ReportsPage() {
     }
   }
 
-  function handleSearch(event) {
+  async function saveReportChanges() {
+    if (!reportDetails) return
+
+    try {
+      setSavingAction(true)
+      setDetailsError('')
+
+      if (editStatus && editStatus !== reportDetails.status) {
+        await api.patch(`/admin/reports/${reportDetails.id}/status`, {
+          new_status: editStatus,
+        })
+      }
+
+      if (editPriority && editPriority !== reportDetails.priority) {
+        await api.patch(`/admin/reports/${reportDetails.id}/priority`, {
+          priority: editPriority,
+        })
+      }
+
+      if (
+        editEmployee &&
+        Number(editEmployee) !== Number(reportDetails.assigned_employee_id)
+      ) {
+        await api.patch(`/admin/reports/${reportDetails.id}/assign`, {
+          employee_id: Number(editEmployee),
+        })
+      }
+
+      const response = await api.get(`/admin/reports/${reportDetails.id}`)
+      setReportDetails(response.data)
+      setEditStatus(response.data.status || '')
+      setEditPriority(response.data.priority || '')
+      setEditEmployee(response.data.assigned_employee_id || '')
+
+      await loadReports(page)
+    } catch (requestError) {
+      console.error('SAVE_REPORT_ERROR:', requestError)
+      setDetailsError(
+        requestError.response?.data?.detail ||
+        requestError.message ||
+        'تعذر تحديث بيانات البلاغ.'
+      )
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+function handleSearch(event) {
     event.preventDefault()
     loadReports(1)
   }
@@ -1500,6 +1557,63 @@ function ReportsPage() {
                       reportDetails.priority ||
                       '-'}
                   </span>
+                </div>
+
+                <div className="report-edit-section">
+                  <div className="detail-section-title">
+                    <ShieldCheck size={18} />
+                    <h4>إدارة البلاغ</h4>
+                  </div>
+
+                  <div className="report-edit-grid">
+                    <label>
+                      <span>الحالة</span>
+                      <select
+                        value={editStatus}
+                        onChange={(event) => setEditStatus(event.target.value)}
+                      >
+                        {Object.entries(statusLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span>الأولوية</span>
+                      <select
+                        value={editPriority}
+                        onChange={(event) => setEditPriority(event.target.value)}
+                      >
+                        {Object.entries(priorityLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span>الموظف</span>
+                      <select
+                        value={editEmployee}
+                        onChange={(event) => setEditEmployee(event.target.value)}
+                      >
+                        <option value="">اختيار الموظف</option>
+                        {employees.map((employee) => (
+                          <option key={employee.id} value={employee.id}>
+                            {employee.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={savingAction}
+                    onClick={saveReportChanges}
+                  >
+                    {savingAction ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+                  </button>
                 </div>
 
                 <div className="report-detail-section">
