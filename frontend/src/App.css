@@ -3664,3 +3664,31 @@ footer {
     margin-right: auto;
   }
 }
+
+
+/* Reports map */
+.reports-map-panel {
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.reports-map {
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.reports-map .leaflet-container {
+  font-family: inherit;
+  z-index: 1;
+}
+
+.map-total {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
+}

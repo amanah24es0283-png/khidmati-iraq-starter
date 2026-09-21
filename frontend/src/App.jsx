@@ -24,6 +24,7 @@ import {
 import './App.css'
 import Login from './Login'
 import CitizenDashboard from './CitizenDashboard'
+import ReportsMap from './ReportsMap'
 import { clearSession, getToken, getUser } from './auth'
 import api from './api/client'
 
@@ -594,6 +595,8 @@ function App() {
             </div>
           </article>
         </section>
+
+        <ReportsMap />
 
         <section className="panel monitoring-panel">
           <div className="panel-header">
