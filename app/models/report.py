@@ -116,6 +116,11 @@ class Report(Base):
     audit_logs: Mapped[list["AuditLog"]] = relationship(
         "AuditLog", back_populates="report"
     )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="report",
+        cascade="all, delete-orphan",
+    )
 
 
 def generate_reference_number(db: Session, year: int) -> str:

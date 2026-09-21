@@ -62,3 +62,8 @@ class User(Base):
     audit_logs: Mapped[list["AuditLog"]] = relationship(
         "AuditLog", back_populates="user"
     )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

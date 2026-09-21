@@ -21,6 +21,7 @@ from app.models.governorate import Governorate
 from app.models.report import Report, ReportPriority, ReportStatus, generate_reference_number
 from app.models.audit_log import AuditLog
 from app.models.status_history import ReportStatusHistory
+from app.models.notification import Notification
 from app.models.user import User, UserRole
 from app.schemas.report import (
     AssignRequest,
@@ -94,6 +95,33 @@ def record_status_change(
     )
     report.status = new_status
     db.add(history)
+
+    status_labels = {
+        "submitted": "تم التقديم",
+        "under_review": "قيد المراجعة",
+        "assigned": "تمت الإحالة",
+        "in_progress": "قيد المعالجة",
+        "resolved": "تم الحل",
+        "rejected": "مرفوض",
+        "cancelled": "ملغى",
+    }
+
+    status_label = status_labels.get(
+        new_status.value,
+        new_status.value,
+    )
+
+    notification = Notification(
+        user_id=report.citizen_id,
+        report_id=report.id,
+        title="تحديث حالة البلاغ",
+        message=(
+            f"تم تحديث حالة البلاغ {report.reference_number} "
+            f"إلى «{status_label}»."
+        ),
+        notification_type="report_status",
+    )
+    db.add(notification)
 
 
 # ---------------------------------------------------------------------------
