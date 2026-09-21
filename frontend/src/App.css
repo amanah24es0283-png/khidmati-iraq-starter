@@ -3180,3 +3180,139 @@ footer {
     max-height: 94vh;
   }
 }
+
+
+/* Citizen report timeline */
+.citizen-timeline {
+  position: relative;
+  margin-top: 18px;
+  padding: 4px 8px 4px 0;
+}
+
+.citizen-timeline::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  right: 17px;
+  width: 2px;
+  background: #dfe4d8;
+}
+
+.citizen-timeline-item {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  min-height: 72px;
+  padding-bottom: 18px;
+}
+
+.timeline-marker {
+  position: relative;
+  z-index: 2;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f1f3ec;
+  color: #9aa18e;
+  border: 2px solid #e2e6dc;
+}
+
+.citizen-timeline-item.completed .timeline-marker {
+  background: #e8efe2;
+  color: #657653;
+  border-color: #cbd8bd;
+}
+
+.citizen-timeline-item.current .timeline-marker {
+  background: #687653;
+  color: #fff;
+  border-color: #687653;
+  box-shadow: 0 0 0 5px rgba(104, 118, 83, 0.12);
+}
+
+.citizen-timeline-content {
+  flex: 1;
+  padding-top: 2px;
+}
+
+.citizen-timeline-content strong {
+  display: inline-block;
+  font-size: 15px;
+  color: #30372b;
+}
+
+.citizen-timeline-item.current .citizen-timeline-content strong {
+  color: #687653;
+}
+
+.citizen-timeline-content p {
+  margin: 6px 0 4px;
+  color: #687060;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.citizen-timeline-content small {
+  display: block;
+  margin-top: 5px;
+  color: #92998b;
+  font-size: 12px;
+}
+
+.timeline-current-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #edf2e8;
+  color: #687653;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.citizen-timeline-item.current:last-child .timeline-marker {
+  background: #687653;
+}
+
+.citizen-timeline-item.current .timeline-current-badge {
+  animation: timelinePulse 2s ease-in-out infinite;
+}
+
+@keyframes timelinePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(104, 118, 83, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(104, 118, 83, 0.08);
+  }
+}
+
+@media (max-width: 700px) {
+  .citizen-timeline {
+    padding-right: 0;
+  }
+
+  .citizen-timeline::before {
+    right: 16px;
+  }
+
+  .timeline-marker {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+  }
+
+  .citizen-timeline-content strong {
+    font-size: 14px;
+  }
+
+  .timeline-current-badge {
+    margin-right: 5px;
+    font-size: 10px;
+  }
+}

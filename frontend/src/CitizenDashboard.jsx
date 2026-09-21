@@ -11,6 +11,8 @@ import {
   RefreshCw,
   Send,
   X,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react'
 import api from './api/client'
 
@@ -673,32 +675,83 @@ export default function CitizenDashboard({ user, onLogout }) {
                   <div className="citizen-history">
                     <div className="citizen-detail-title">
                       <RefreshCw size={18} />
-                      <h3>سجل حالة البلاغ</h3>
+                      <h3>رحلة البلاغ</h3>
                     </div>
 
-                    {history.length === 0 ? (
-                      <p className="citizen-empty-small">
-                        لا يوجد سجل تغييرات بعد.
-                      </p>
-                    ) : (
-                      <div className="citizen-timeline">
-                        {history.map((item) => (
-                          <div className="citizen-timeline-item" key={item.id}>
-                            <div className="timeline-dot" />
-                            <div>
-                              <strong>
-                                {statusLabels[item.new_status] ||
-                                  item.new_status}
-                              </strong>
-                              {item.note && <p>{item.note}</p>}
-                              <small>
-                                {formatCitizenDate(item.created_at)}
-                              </small>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const normalSteps = [
+                        'submitted',
+                        'under_review',
+                        'assigned',
+                        'in_progress',
+                        'resolved',
+                      ]
+
+                      const terminalStatus = ['rejected', 'cancelled'].includes(
+                        selectedReport.status,
+                      )
+
+                      const steps = terminalStatus
+                        ? [...normalSteps.slice(0, 2), selectedReport.status]
+                        : normalSteps
+
+                      const currentIndex = steps.indexOf(selectedReport.status)
+
+                      return (
+                        <div className="citizen-timeline">
+                          {steps.map((step, index) => {
+                            const completed =
+                              currentIndex >= 0 && index < currentIndex
+                            const current = step === selectedReport.status
+
+                            const historyItem = [...history]
+                              .reverse()
+                              .find((item) => item.new_status === step)
+
+                            return (
+                              <div
+                                className={`citizen-timeline-item ${
+                                  completed ? 'completed' : ''
+                                } ${current ? 'current' : ''}`}
+                                key={step}
+                              >
+                                <div className="timeline-marker">
+                                  {completed || current ? (
+                                    <CheckCircle2 size={20} />
+                                  ) : (
+                                    <Circle size={18} />
+                                  )}
+                                </div>
+
+                                <div className="citizen-timeline-content">
+                                  <strong>
+                                    {statusLabels[step] || step}
+                                  </strong>
+
+                                  {current && (
+                                    <span className="timeline-current-badge">
+                                      الحالة الحالية
+                                    </span>
+                                  )}
+
+                                  {historyItem?.note && (
+                                    <p>{historyItem.note}</p>
+                                  )}
+
+                                  {historyItem?.created_at && (
+                                    <small>
+                                      {formatCitizenDate(
+                                        historyItem.created_at,
+                                      )}
+                                    </small>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   <div className="citizen-comments">
