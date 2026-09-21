@@ -31,6 +31,10 @@ class Governorate(Base):
     users: Mapped[list["User"]] = relationship(  # type: ignore[name-defined]
         "User", back_populates="governorate", foreign_keys="User.governorate_id"
     )
+    monitoring: Mapped["GovernorateMonitoring | None"] = relationship(
+        "GovernorateMonitoring", back_populates="governorate", uselist=False
+    )
+
     reports: Mapped[list["Report"]] = relationship(  # type: ignore[name-defined]
         "Report", back_populates="governorate"
     )

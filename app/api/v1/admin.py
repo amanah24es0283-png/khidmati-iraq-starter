@@ -453,3 +453,121 @@ def dashboard_trends(
         "end_date": today_start.date().isoformat(),
         "data": trends,
     }
+
+# ---------------------------------------------------------------------------
+# Governorate continuous monitoring
+# ---------------------------------------------------------------------------
+
+from app.models.governorate import Governorate
+from app.models.governorate_monitoring import GovernorateMonitoring
+from app.schemas.governorate_monitoring import (
+    GovernorateMonitoringItem,
+    GovernorateMonitoringUpdate,
+)
+
+
+@router.get(
+    "/governorates/monitoring",
+    response_model=list[GovernorateMonitoringItem],
+)
+def list_governorate_monitoring(
+    active_only: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """List governorates configured for continuous monitoring."""
+    query = (
+        db.query(GovernorateMonitoring)
+        .join(Governorate)
+        .order_by(GovernorateMonitoring.updated_at.desc())
+    )
+
+    if active_only:
+        query = query.filter(GovernorateMonitoring.is_active.is_(True))
+
+    items = query.all()
+
+    return [
+        GovernorateMonitoringItem(
+            governorate_id=item.governorate_id,
+            governorate_name_ar=item.governorate.name_ar,
+            governorate_name_en=item.governorate.name_en,
+            is_active=item.is_active,
+            reason=item.reason,
+            notes=item.notes,
+            updated_at=item.updated_at,
+        )
+        for item in items
+    ]
+
+
+@router.put(
+    "/governorates/{governorate_id}/monitoring",
+    response_model=GovernorateMonitoringItem,
+)
+def update_governorate_monitoring(
+    governorate_id: int,
+    data: GovernorateMonitoringUpdate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Create or update continuous monitoring for a governorate."""
+    governorate = db.get(Governorate, governorate_id)
+
+    if governorate is None:
+        raise NotFoundError("Governorate")
+
+    monitoring = (
+        db.query(GovernorateMonitoring)
+        .filter(GovernorateMonitoring.governorate_id == governorate_id)
+        .first()
+    )
+
+    if monitoring is None:
+        monitoring = GovernorateMonitoring(
+            governorate_id=governorate_id,
+            is_active=data.is_active,
+            reason=data.reason,
+            notes=data.notes,
+        )
+        db.add(monitoring)
+    else:
+        monitoring.is_active = data.is_active
+        monitoring.reason = data.reason
+        monitoring.notes = data.notes
+
+    db.commit()
+    db.refresh(monitoring)
+
+    return GovernorateMonitoringItem(
+        governorate_id=governorate.id,
+        governorate_name_ar=governorate.name_ar,
+        governorate_name_en=governorate.name_en,
+        is_active=monitoring.is_active,
+        reason=monitoring.reason,
+        notes=monitoring.notes,
+        updated_at=monitoring.updated_at,
+    )
+
+
+@router.delete(
+    "/governorates/{governorate_id}/monitoring",
+    status_code=204,
+)
+def disable_governorate_monitoring(
+    governorate_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Disable continuous monitoring for a governorate."""
+    monitoring = (
+        db.query(GovernorateMonitoring)
+        .filter(GovernorateMonitoring.governorate_id == governorate_id)
+        .first()
+    )
+
+    if monitoring is None:
+        raise NotFoundError("Governorate monitoring")
+
+    monitoring.is_active = False
+    db.commit()

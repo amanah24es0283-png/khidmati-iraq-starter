@@ -11,3 +11,4 @@ from app.models.status_history import ReportStatusHistory  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 
 from app.models.notification import Notification  # noqa: F401
+from app.models.governorate_monitoring import GovernorateMonitoring  # noqa: F401
