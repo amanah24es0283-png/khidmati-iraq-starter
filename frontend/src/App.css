@@ -1695,3 +1695,65 @@ footer {
     width: 100%;
   }
 }
+
+/* Audit logs page */
+.audit-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.audit-panel {
+  overflow: hidden;
+}
+
+.audit-table-wrap {
+  overflow-x: auto;
+}
+
+.audit-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+.audit-table th,
+.audit-table td {
+  padding: 15px 16px;
+  text-align: right;
+  border-bottom: 1px solid var(--row-border);
+  white-space: nowrap;
+}
+
+.audit-table th {
+  background: var(--table-head);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.audit-table td {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.audit-table tbody tr:hover {
+  background: var(--primary-soft);
+}
+
+.audit-action {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.audit-details {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
