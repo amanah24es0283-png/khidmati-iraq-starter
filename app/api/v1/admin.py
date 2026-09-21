@@ -155,6 +155,32 @@ def list_reports(
     )
 
 
+@router.get("/reports/{report_id}", response_model=ReportDetailResponse)
+def get_report_details(
+    report_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Return complete report details for admin dashboard."""
+    report = (
+        db.query(Report)
+        .options(
+            joinedload(Report.citizen),
+            joinedload(Report.assigned_employee),
+            joinedload(Report.category),
+            joinedload(Report.governorate),
+            joinedload(Report.area),
+        )
+        .filter(Report.id == report_id)
+        .first()
+    )
+
+    if report is None:
+        raise NotFoundError("Report")
+
+    return ReportDetailResponse.model_validate(report)
+
+
 @router.patch("/reports/{report_id}/assign", response_model=ReportResponse)
 def assign_report(
     report_id: int,
