@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -594,6 +596,99 @@ function App() {
               )}
             </div>
           </article>
+        </section>
+
+        <section className="analytics-grid">
+          <div className="panel analytics-panel">
+            <div className="panel-header">
+              <div>
+                <h3>البلاغات حسب الأولوية</h3>
+                <span>توزيع البلاغات الحالية حسب مستوى الأولوية</span>
+              </div>
+            </div>
+
+            <div className="analytics-chart">
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={[
+                    {
+                      name: 'عاجل',
+                      count: dashboard?.reports_by_priority?.urgent || 0,
+                    },
+                    {
+                      name: 'عالي',
+                      count: dashboard?.reports_by_priority?.high || 0,
+                    },
+                    {
+                      name: 'متوسط',
+                      count: dashboard?.reports_by_priority?.medium || 0,
+                    },
+                    {
+                      name: 'منخفض',
+                      count: dashboard?.reports_by_priority?.low || 0,
+                    },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="البلاغات" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="panel analytics-panel">
+            <div className="panel-header">
+              <div>
+                <h3>حالة البلاغات</h3>
+                <span>صورة مباشرة لتوزيع حالات المعالجة</span>
+              </div>
+            </div>
+
+            <div className="analytics-status-list">
+              {Object.entries(dashboard?.reports_by_status || {}).map(
+                ([status, count]) => (
+                  <div className="analytics-status-row" key={status}>
+                    <span>{statusLabels[status] || status}</span>
+                    <strong>{count}</strong>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="panel analytics-panel analytics-wide">
+            <div className="panel-header">
+              <div>
+                <h3>البلاغات حسب التصنيف</h3>
+                <span>أكثر أنواع الخدمات والبلاغات تسجيلًا</span>
+              </div>
+            </div>
+
+            <div className="analytics-chart">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart
+                  data={Object.entries(
+                    dashboard?.reports_by_category || {}
+                  ).map(([name, count]) => ({ name, count }))}
+                  layout="vertical"
+                  margin={{ left: 20, right: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={110}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="count" name="البلاغات" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </section>
 
         <ReportsMap />
