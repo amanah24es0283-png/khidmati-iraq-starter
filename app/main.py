@@ -22,8 +22,9 @@ app = FastAPI(
         "Khidmati Iraq – A platform for citizens to report public-service problems "
         "in Iraqi cities. Built with FastAPI and PostgreSQL."
     ),
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 # ---------------------------------------------------------------------------
