@@ -121,11 +121,11 @@ API_V1_PREFIX=/api/v1
 
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/khidmati_iraq
 
-JWT_SECRET_KEY=change-this-secret-key-before-production
+JWT_SECRET_KEY=replace-with-a-long-random-secret
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-SEED_DEFAULT_PASSWORD=ChangeMe123!
+SEED_DEFAULT_PASSWORD=replace-with-a-strong-development-password
 
 TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/khidmati_iraq_test
 ```
