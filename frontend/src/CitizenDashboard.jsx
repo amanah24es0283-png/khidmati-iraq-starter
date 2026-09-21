@@ -406,9 +406,19 @@ export default function CitizenDashboard({ user, onLogout }) {
                           className={`citizen-notification-item ${
                             notification.is_read ? 'read' : 'unread'
                           }`}
-                          onClick={() => {
+                          onClick={async () => {
+                            console.log('CLICKED_NOTIFICATION:', notification)
+                            console.log('NOTIFICATION_REPORT_ID:', notification.report_id)
+
                             if (!notification.is_read) {
-                              markNotificationRead(notification.id)
+                              await markNotificationRead(notification.id)
+                            }
+
+                            if (notification.report_id) {
+                              setNotificationsOpen(false)
+                              setMessage('')
+                              setError('')
+                              await openReport(notification.report_id)
                             }
                           }}
                         >
