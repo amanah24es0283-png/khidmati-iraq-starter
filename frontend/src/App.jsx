@@ -98,6 +98,7 @@ function formatShortDate(value) {
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activePage, setActivePage] = useState('الرئيسية')
   const [user, setUser] = useState(getUser)
   const [token, setToken] = useState(getToken)
   const [theme, setTheme] = useState(
@@ -266,14 +267,20 @@ function App() {
         <div className="sidebar-section-title">القائمة الرئيسية</div>
 
         <nav className="nav-list">
-          {navigation.map(({ label, icon: Icon, active }) => (
+          {navigation.map(({ label, icon: Icon }) => (
             <button
               key={label}
-              className={`nav-item ${active ? 'active' : ''}`}
+              className={`nav-item ${activePage === label ? 'active' : ''}`}
+              onClick={() => {
+                setActivePage(label)
+                setSidebarOpen(false)
+              }}
             >
               <Icon size={19} />
               <span>{label}</span>
-              {active && <ChevronLeft className="nav-arrow" size={17} />}
+              {activePage === label && (
+                <ChevronLeft className="nav-arrow" size={17} />
+              )}
             </button>
           ))}
         </nav>
@@ -355,6 +362,10 @@ function App() {
           </div>
         </header>
 
+        {activePage === 'البلاغات' ? (
+          <ReportsPage />
+        ) : (
+          <>
         <section className="welcome-card">
           <div>
             <span className="welcome-label">أهلاً بك 👋</span>
@@ -579,11 +590,419 @@ function App() {
           </div>
         </section>
 
+          </>
+        )}
+
         <footer>
           خدمتي العراق © 2026 — منصة رقمية لإدارة بلاغات الخدمات العامة
         </footer>
       </main>
     </div>
+  )
+}
+
+
+function ReportsPage() {
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [priority, setPriority] = useState('')
+  const [urgentOnly, setUrgentOnly] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+  const [selectedReport, setSelectedReport] = useState(null)
+
+  async function loadReports(currentPage = 1, filters = {}) {
+    try {
+      setLoading(true)
+      setError('')
+
+      const params = {
+        page: currentPage,
+        page_size: pageSize,
+        search: filters.search ?? search,
+        status: filters.status ?? status,
+        priority: filters.priority ?? priority,
+        urgent_only: filters.urgentOnly ?? urgentOnly,
+      }
+
+      Object.keys(params).forEach((key) => {
+        if (params[key] === '' || params[key] === false || params[key] == null) {
+          delete params[key]
+        }
+      })
+
+      const response = await api.get('/admin/reports', { params })
+
+      setReports(response.data?.items || [])
+      setTotal(response.data?.total || 0)
+      setPage(currentPage)
+    } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        setError('ليس لديك صلاحية للوصول إلى البلاغات.')
+      } else {
+        setError('تعذر تحميل البلاغات. تأكدي من تشغيل الـBackend.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitialReports() {
+      try {
+        setLoading(true)
+        setError('')
+
+        const response = await api.get('/admin/reports', {
+          params: {
+            page: 1,
+            page_size: pageSize,
+          },
+        })
+
+        if (cancelled) return
+
+        setReports(response.data?.items || [])
+        setTotal(response.data?.total || 0)
+        setPage(1)
+      } catch (requestError) {
+        if (cancelled) return
+
+        if (requestError.response?.status === 403) {
+          setError('ليس لديك صلاحية للوصول إلى البلاغات.')
+        } else {
+          setError('تعذر تحميل البلاغات. تأكدي من تشغيل الـBackend.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadInitialReports()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageSize])
+
+  function handleSearch(event) {
+    event.preventDefault()
+    loadReports(1)
+  }
+
+  function clearFilters() {
+    setSearch('')
+    setStatus('')
+    setPriority('')
+    setUrgentOnly(false)
+    setPage(1)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  return (
+    <section className="reports-page">
+      <div className="page-intro">
+        <div>
+          <span className="welcome-label">إدارة الخدمات</span>
+          <h2>البلاغات</h2>
+          <p>
+            عرض ومتابعة البلاغات المسجلة على المنصة مع البحث والفلترة السريعة.
+          </p>
+        </div>
+
+        <div className="reports-total">
+          <strong>{total}</strong>
+          <span>بلاغ</span>
+        </div>
+      </div>
+
+      <form className="reports-filters panel" onSubmit={handleSearch}>
+        <div className="filter-field search-field">
+          <label htmlFor="report-search">بحث</label>
+          <input
+            id="report-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="رقم البلاغ أو العنوان أو الوصف..."
+          />
+        </div>
+
+        <div className="filter-field">
+          <label htmlFor="report-status">الحالة</label>
+          <select
+            id="report-status"
+            value={status}
+            onChange={(event) => {
+              const value = event.target.value
+              setStatus(value)
+              loadReports(1, { status: value })
+            }}
+          >
+            <option value="">كل الحالات</option>
+            {Object.entries(statusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-field">
+          <label htmlFor="report-priority">الأولوية</label>
+          <select
+            id="report-priority"
+            value={priority}
+            onChange={(event) => {
+              const value = event.target.value
+              setPriority(value)
+              loadReports(1, { priority: value })
+            }}
+          >
+            <option value="">كل الأولويات</option>
+            {Object.entries(priorityLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="urgent-filter">
+          <input
+            type="checkbox"
+            checked={urgentOnly}
+            onChange={(event) => {
+              const value = event.target.checked
+              setUrgentOnly(value)
+              loadReports(1, { urgentOnly: value })
+            }}
+          />
+          <span>العاجلة فقط</span>
+        </label>
+
+        <div className="filter-actions">
+          <button className="primary-button" type="submit">
+            بحث
+          </button>
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={clearFilters}
+          >
+            مسح
+          </button>
+        </div>
+      </form>
+
+      {error && (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      )}
+
+      <article className="panel reports-panel">
+        <div className="panel-header">
+          <div>
+            <h3>قائمة البلاغات</h3>
+            <span>
+              {loading ? 'جاري التحميل...' : `${total} نتيجة`}
+            </span>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>البلاغ</th>
+                <th>التصنيف</th>
+                <th>الحالة</th>
+                <th>الأولوية</th>
+                <th>التاريخ</th>
+                <th>التفاصيل</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="table-empty">
+                    جاري تحميل البلاغات...
+                  </td>
+                </tr>
+              ) : reports.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="table-empty">
+                    لا توجد بلاغات مطابقة للبحث الحالي.
+                  </td>
+                </tr>
+              ) : (
+                reports.map((report) => (
+                  <tr key={report.id}>
+                    <td>
+                      <strong>{report.title || 'بدون عنوان'}</strong>
+                      <span>#{report.reference_number || report.id}</span>
+                    </td>
+
+                    <td>#{report.category_id ?? '-'}</td>
+
+                    <td>
+                      <span
+                        className={`badge status-${
+                          statusTones[report.status] || 'blue'
+                        }`}
+                      >
+                        {statusLabels[report.status] || report.status || '-'}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`badge priority-${
+                          priorityTones[report.priority] || 'blue'
+                        }`}
+                      >
+                        {priorityLabels[report.priority] ||
+                          report.priority ||
+                          '-'}
+                      </span>
+                    </td>
+
+                    <td title={formatDate(report.created_at)}>
+                      {formatDate(report.created_at)}
+                    </td>
+
+                    <td>
+                      <button
+                        className="details-button"
+                        onClick={() => setSelectedReport(report)}
+                      >
+                        عرض
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pagination">
+          <button
+            className="secondary-button"
+            disabled={page <= 1 || loading}
+            onClick={() => loadReports(page - 1)}
+          >
+            السابق
+          </button>
+
+          <span>
+            صفحة <strong>{page}</strong> من <strong>{totalPages}</strong>
+          </span>
+
+          <button
+            className="secondary-button"
+            disabled={page >= totalPages || loading}
+            onClick={() => loadReports(page + 1)}
+          >
+            التالي
+          </button>
+        </div>
+      </article>
+
+      {selectedReport && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setSelectedReport(null)}
+        >
+          <div
+            className="report-modal panel"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <span className="welcome-label">تفاصيل البلاغ</span>
+                <h3>{selectedReport.title || 'بدون عنوان'}</h3>
+              </div>
+
+              <button
+                className="modal-close"
+                onClick={() => setSelectedReport(null)}
+                aria-label="إغلاق"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="report-detail-grid">
+              <div>
+                <span>رقم البلاغ</span>
+                <strong>
+                  #{selectedReport.reference_number || selectedReport.id}
+                </strong>
+              </div>
+
+              <div>
+                <span>التصنيف</span>
+                <strong>#{selectedReport.category_id ?? '-'}</strong>
+              </div>
+
+              <div>
+                <span>الحالة</span>
+                <strong>
+                  {statusLabels[selectedReport.status] ||
+                    selectedReport.status ||
+                    '-'}
+                </strong>
+              </div>
+
+              <div>
+                <span>الأولوية</span>
+                <strong>
+                  {priorityLabels[selectedReport.priority] ||
+                    selectedReport.priority ||
+                    '-'}
+                </strong>
+              </div>
+
+              <div>
+                <span>المحافظة</span>
+                <strong>#{selectedReport.governorate_id ?? '-'}</strong>
+              </div>
+
+              <div>
+                <span>الموظف المحال إليه</span>
+                <strong>
+                  #{selectedReport.assigned_employee_id ?? '-'}
+                </strong>
+              </div>
+            </div>
+
+            <div className="report-description">
+              <span>الوصف</span>
+              <p>
+                {selectedReport.description ||
+                  'لا يوجد وصف إضافي لهذا البلاغ.'}
+              </p>
+            </div>
+
+            <div className="report-meta">
+              <span>
+                تاريخ الإنشاء: {formatDate(selectedReport.created_at)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
