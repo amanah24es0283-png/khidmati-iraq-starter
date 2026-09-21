@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     # Seed
-    seed_default_password: str = "ChangeMe123!"
+    seed_default_password: str
 
     # Test database (optional – only required when running tests)
     test_database_url: str = ""
