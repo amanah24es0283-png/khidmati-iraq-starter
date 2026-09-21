@@ -1082,6 +1082,9 @@ function ReportsPage() {
   const [pageSize] = useState(10)
   const [total, setTotal] = useState(0)
   const [selectedReport, setSelectedReport] = useState(null)
+  const [reportDetails, setReportDetails] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState('')
 
   async function loadReports(currentPage = 1, filters = {}) {
     try {
@@ -1159,6 +1162,28 @@ function ReportsPage() {
     }
   }, [pageSize])
 
+  async function openReportDetails(report) {
+    setSelectedReport(report)
+    setReportDetails(null)
+    setDetailsError('')
+    setDetailsLoading(true)
+
+    try {
+      const response = await api.get(`/admin/reports/${report.id}`)
+      setReportDetails(response.data)
+    } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        setDetailsError('ليس لديك صلاحية لعرض تفاصيل هذا البلاغ.')
+      } else if (requestError.response?.status === 404) {
+        setDetailsError('البلاغ غير موجود.')
+      } else {
+        setDetailsError('تعذر تحميل تفاصيل البلاغ.')
+      }
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
   function handleSearch(event) {
     event.preventDefault()
     loadReports(1)
@@ -1169,7 +1194,12 @@ function ReportsPage() {
     setStatus('')
     setPriority('')
     setUrgentOnly(false)
-    setPage(1)
+    loadReports(1, {
+      search: '',
+      status: '',
+      priority: '',
+      urgentOnly: false,
+    })
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -1351,7 +1381,7 @@ function ReportsPage() {
                     <td>
                       <button
                         className="details-button"
-                        onClick={() => setSelectedReport(report)}
+                        onClick={() => openReportDetails(report)}
                       >
                         عرض
                       </button>
@@ -1389,84 +1419,193 @@ function ReportsPage() {
       {selectedReport && (
         <div
           className="modal-backdrop"
-          onClick={() => setSelectedReport(null)}
+          onClick={() => {
+            setSelectedReport(null)
+            setReportDetails(null)
+          }}
         >
           <div
-            className="report-modal panel"
+            className="report-modal report-detail-modal panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-header">
               <div>
-                <span className="welcome-label">تفاصيل البلاغ</span>
-                <h3>{selectedReport.title || 'بدون عنوان'}</h3>
+                <span className="welcome-label">ملف البلاغ</span>
+                <h3>
+                  {reportDetails?.title ||
+                    selectedReport.title ||
+                    'بدون عنوان'}
+                </h3>
+                <span className="report-reference">
+                  #{reportDetails?.reference_number ||
+                    selectedReport.reference_number ||
+                    selectedReport.id}
+                </span>
               </div>
 
               <button
                 className="modal-close"
-                onClick={() => setSelectedReport(null)}
+                onClick={() => {
+                  setSelectedReport(null)
+                  setReportDetails(null)
+                }}
                 aria-label="إغلاق"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="report-detail-grid">
-              <div>
-                <span>رقم البلاغ</span>
-                <strong>
-                  #{selectedReport.reference_number || selectedReport.id}
-                </strong>
+            {detailsLoading ? (
+              <div className="report-detail-loading">
+                <div className="loading-spinner" />
+                <strong>جاري تحميل تفاصيل البلاغ...</strong>
+                <span>يتم جلب المعلومات المرتبطة بالبلاغ.</span>
               </div>
-
-              <div>
-                <span>التصنيف</span>
-                <strong>#{selectedReport.category_id ?? '-'}</strong>
+            ) : detailsError ? (
+              <div className="error-message" role="alert">
+                {detailsError}
               </div>
+            ) : reportDetails ? (
+              <>
+                <div className="report-status-banner">
+                  <div>
+                    <span>الحالة الحالية</span>
+                    <strong>
+                      {statusLabels[reportDetails.status] ||
+                        reportDetails.status ||
+                        '-'}
+                    </strong>
+                  </div>
 
-              <div>
-                <span>الحالة</span>
-                <strong>
-                  {statusLabels[selectedReport.status] ||
-                    selectedReport.status ||
-                    '-'}
-                </strong>
-              </div>
+                  <span
+                    className={`badge priority-${
+                      priorityTones[reportDetails.priority] || 'blue'
+                    }`}
+                  >
+                    {priorityLabels[reportDetails.priority] ||
+                      reportDetails.priority ||
+                      '-'}
+                  </span>
+                </div>
 
-              <div>
-                <span>الأولوية</span>
-                <strong>
-                  {priorityLabels[selectedReport.priority] ||
-                    selectedReport.priority ||
-                    '-'}
-                </strong>
-              </div>
+                <div className="report-detail-section">
+                  <div className="detail-section-title">
+                    <FileText size={18} />
+                    <h4>معلومات البلاغ</h4>
+                  </div>
 
-              <div>
-                <span>المحافظة</span>
-                <strong>#{selectedReport.governorate_id ?? '-'}</strong>
-              </div>
+                  <div className="report-detail-grid">
+                    <div>
+                      <span>رقم البلاغ</span>
+                      <strong>
+                        #{reportDetails.reference_number || reportDetails.id}
+                      </strong>
+                    </div>
 
-              <div>
-                <span>الموظف المحال إليه</span>
-                <strong>
-                  #{selectedReport.assigned_employee_id ?? '-'}
-                </strong>
-              </div>
-            </div>
+                    <div>
+                      <span>التصنيف</span>
+                      <strong>
+                        {reportDetails.category?.name ||
+                          `#${reportDetails.category_id}`}
+                      </strong>
+                    </div>
 
-            <div className="report-description">
-              <span>الوصف</span>
-              <p>
-                {selectedReport.description ||
-                  'لا يوجد وصف إضافي لهذا البلاغ.'}
-              </p>
-            </div>
+                    <div>
+                      <span>المحافظة</span>
+                      <strong>
+                        {reportDetails.governorate?.name ||
+                          `#${reportDetails.governorate_id}`}
+                      </strong>
+                    </div>
 
-            <div className="report-meta">
-              <span>
-                تاريخ الإنشاء: {formatDate(selectedReport.created_at)}
-              </span>
-            </div>
+                    <div>
+                      <span>المنطقة</span>
+                      <strong>
+                        {reportDetails.area?.name ||
+                          `#${reportDetails.area_id}`}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>تاريخ الإنشاء</span>
+                      <strong>{formatDate(reportDetails.created_at)}</strong>
+                    </div>
+
+                    <div>
+                      <span>آخر تحديث</span>
+                      <strong>{formatDate(reportDetails.updated_at)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="report-description">
+                    <span>الوصف</span>
+                    <p>
+                      {reportDetails.description ||
+                        'لا يوجد وصف إضافي لهذا البلاغ.'}
+                    </p>
+                  </div>
+
+                  {reportDetails.address_details && (
+                    <div className="detail-address">
+                      <span>تفاصيل الموقع</span>
+                      <strong>{reportDetails.address_details}</strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="report-detail-section">
+                  <div className="detail-section-title">
+                    <Users size={18} />
+                    <h4>الأطراف المرتبطة</h4>
+                  </div>
+
+                  <div className="people-grid">
+                    <div className="person-card">
+                      <span>المواطن</span>
+                      <strong>
+                        {reportDetails.citizen?.full_name || 'غير متوفر'}
+                      </strong>
+                      <small>
+                        {reportDetails.citizen?.email || 'لا يوجد بريد'}
+                      </small>
+                    </div>
+
+                    <div className="person-card">
+                      <span>الموظف المحال إليه</span>
+                      <strong>
+                        {reportDetails.assigned_employee?.full_name ||
+                          'لم يتم الإحالة بعد'}
+                      </strong>
+                      <small>
+                        {reportDetails.assigned_employee?.email ||
+                          'لا يوجد موظف معيّن'}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                {(reportDetails.resolution_summary ||
+                  reportDetails.resolved_at) && (
+                  <div className="resolution-box">
+                    <div className="detail-section-title">
+                      <ShieldCheck size={18} />
+                      <h4>نتيجة المعالجة</h4>
+                    </div>
+
+                    <p>
+                      {reportDetails.resolution_summary ||
+                        'تمت معالجة البلاغ.'}
+                    </p>
+
+                    {reportDetails.resolved_at && (
+                      <span>
+                        تاريخ الحل: {formatDate(reportDetails.resolved_at)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       )}
