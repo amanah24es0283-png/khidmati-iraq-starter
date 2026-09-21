@@ -1,8 +1,29 @@
-import { Bell, ChevronLeft, FileText, Home, LogOut, Menu, Settings, ShieldCheck, Users, X } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Bell,
+  ChevronLeft,
+  FileText,
+  Home,
+  LogOut,
+  Menu,
+  Settings,
+  ShieldCheck,
+  Users,
+  X,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import './App.css'
 import Login from './Login'
 import { clearSession, getToken, getUser } from './auth'
+import api from './api/client'
 
 const navigation = [
   { label: 'الرئيسية', icon: Home, active: true },
@@ -12,33 +33,198 @@ const navigation = [
   { label: 'الإعدادات', icon: Settings },
 ]
 
-const stats = [
-  { label: 'إجمالي البلاغات', value: '128', change: '+12%', tone: 'blue' },
-  { label: 'بلاغات مفتوحة', value: '46', change: '+8%', tone: 'amber' },
-  { label: 'بلاغات محلولة', value: '82', change: '+18%', tone: 'green' },
-  { label: 'بلاغات عاجلة', value: '9', change: '-4%', tone: 'red' },
-]
+const statusLabels = {
+  submitted: 'مقدّم',
+  under_review: 'قيد المراجعة',
+  assigned: 'مُحال',
+  in_progress: 'قيد التنفيذ',
+  resolved: 'تم الحل',
+  rejected: 'مرفوض',
+  cancelled: 'ملغي',
+}
 
-const recentReports = [
-  { id: '#KH-1028', title: 'انقطاع ماء في حي الجامعة', category: 'الماء', status: 'قيد المراجعة', priority: 'عاجل', date: 'اليوم، 10:32' },
-  { id: '#KH-1027', title: 'مشكلة إنارة في شارع النصر', category: 'الكهرباء', status: 'قيد التنفيذ', priority: 'متوسط', date: 'اليوم، 09:18' },
-  { id: '#KH-1026', title: 'تراكم نفايات في المنطقة الصناعية', category: 'النظافة', status: 'تم الحل', priority: 'منخفض', date: 'أمس، 18:40' },
-  { id: '#KH-1025', title: 'حفرة كبيرة قرب المدرسة', category: 'الطرق', status: 'قيد التنفيذ', priority: 'عاجل', date: 'أمس، 15:12' },
-]
+const statusTones = {
+  submitted: 'amber',
+  under_review: 'amber',
+  assigned: 'blue',
+  in_progress: 'blue',
+  resolved: 'green',
+  rejected: 'red',
+  cancelled: 'red',
+}
+
+const priorityLabels = {
+  urgent: 'عاجل',
+  high: 'عالي',
+  medium: 'متوسط',
+  low: 'منخفض',
+}
+
+const priorityTones = {
+  urgent: 'red',
+  high: 'red',
+  medium: 'amber',
+  low: 'green',
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('ar-IQ', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatShortDate(value) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('ar-IQ', {
+    day: '2-digit',
+    month: '2-digit',
+  }).format(date)
+}
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [user, setUser] = useState(getUser)
-  const [token] = useState(getToken)
+  const [token, setToken] = useState(getToken)
+
+  const [dashboard, setDashboard] = useState(null)
+  const [trendData, setTrendData] = useState([])
+  const [recentReports, setRecentReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!token || !user) return
+
+    let cancelled = false
+
+    async function loadDashboard() {
+      try {
+        setLoading(true)
+        setError('')
+
+        const [dashboardResponse, trendsResponse, reportsResponse] =
+          await Promise.all([
+            api.get('/admin/dashboard'),
+            api.get('/admin/dashboard/status-trends', {
+              params: { days: 7 },
+            }),
+            api.get('/admin/reports', {
+              params: { page: 1, page_size: 5 },
+            }),
+          ])
+
+        if (cancelled) return
+
+        setDashboard(dashboardResponse.data)
+        setTrendData(trendsResponse.data?.data || [])
+        setRecentReports(reportsResponse.data?.items || [])
+      } catch (requestError) {
+        if (cancelled) return
+
+        if (requestError.response?.status === 401) {
+          clearSession()
+          setToken(null)
+          setUser(null)
+          return
+        }
+
+        if (requestError.response?.status === 403) {
+          setError('ليس لديك صلاحية للوصول إلى لوحة تحكم الإدارة.')
+        } else {
+          setError(
+            'تعذر تحميل بيانات لوحة التحكم. تأكدي من تشغيل الـ Backend وقاعدة البيانات.'
+          )
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadDashboard()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, user])
 
   if (!token || !user) {
-    return <Login onLogin={setUser} />
+    return (
+      <Login
+        onLogin={(loggedInUser) => {
+          setUser(loggedInUser)
+          setToken(getToken())
+        }}
+      />
+    )
   }
 
   function handleLogout() {
     clearSession()
+    setToken(null)
     setUser(null)
   }
+
+  const stats = [
+    {
+      label: 'إجمالي البلاغات',
+      value: dashboard?.total_reports ?? '-',
+      tone: 'blue',
+    },
+    {
+      label: 'بلاغات مفتوحة',
+      value: dashboard?.open_reports ?? '-',
+      tone: 'amber',
+    },
+    {
+      label: 'بلاغات محلولة',
+      value: dashboard?.resolved_reports ?? '-',
+      tone: 'green',
+    },
+    {
+      label: 'بلاغات عاجلة',
+      value: dashboard?.urgent_reports ?? '-',
+      tone: 'red',
+    },
+  ]
+
+  const statusCounts = dashboard?.reports_by_status || {}
+  const totalReports = dashboard?.total_reports || 0
+
+  const statusDistribution = Object.entries(statusCounts)
+    .map(([status, count]) => ({
+      status,
+      label: statusLabels[status] || status,
+      count,
+      percentage: totalReports ? Math.round((count / totalReports) * 100) : 0,
+      tone: statusTones[status] || 'blue',
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  const chartData = trendData.map((day) => ({
+    date: formatShortDate(day.date),
+    submitted: day.submitted || 0,
+    under_review: day.under_review || 0,
+    assigned: day.assigned || 0,
+    in_progress: day.in_progress || 0,
+    resolved: day.resolved || 0,
+    rejected: day.rejected || 0,
+    cancelled: day.cancelled || 0,
+  }))
 
   return (
     <div className="app-shell" dir="rtl">
@@ -122,7 +308,9 @@ function App() {
             </button>
 
             <div className="user-chip">
-              <div className="avatar">{user.full_name?.charAt(0) || "خ"}</div>
+              <div className="avatar">
+                {user.full_name?.charAt(0) || 'خ'}
+              </div>
 
               <div className="user-info">
                 <strong>{user.full_name}</strong>
@@ -149,6 +337,12 @@ function App() {
           </div>
         </section>
 
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
+
         <section className="stats-grid">
           {stats.map((stat) => (
             <article className="stat-card" key={stat.label}>
@@ -158,11 +352,14 @@ function App() {
 
               <div className="stat-copy">
                 <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
+                <strong>{loading ? '...' : stat.value}</strong>
               </div>
 
               <span className={`stat-change ${stat.tone}`}>
-                {stat.change}
+                {stat.label === 'بلاغات محلولة' &&
+                dashboard?.resolution_rate != null
+                  ? `${dashboard.resolution_rate}%`
+                  : ''}
               </span>
             </article>
           ))}
@@ -176,21 +373,63 @@ function App() {
                 <span>آخر 7 أيام</span>
               </div>
 
-              <button className="select-button">
+              <span className="select-button">
                 هذا الأسبوع
                 <ChevronLeft size={15} />
-              </button>
+              </span>
             </div>
 
-            <div className="chart-placeholder">
-              {[35, 52, 44, 70, 58, 82, 67].map((height, index) => (
-                <div className="chart-column" key={index}>
-                  <div style={{ height: `${height}%` }} />
-                  <span>
-                    {['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'][index]}
-                  </span>
-                </div>
-              ))}
+            <div className="chart-container">
+              {loading ? (
+                <div className="empty-state">جاري تحميل البيانات...</div>
+              ) : chartData.length === 0 ? (
+                <div className="empty-state">لا توجد بيانات للحركة.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="date" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        value,
+                        statusLabels[name] || name,
+                      ]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="submitted"
+                      name="submitted"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="under_review"
+                      name="under_review"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="in_progress"
+                      name="in_progress"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="resolved"
+                      name="resolved"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </article>
 
@@ -203,10 +442,20 @@ function App() {
             </div>
 
             <div className="status-list">
-              <StatusRow label="تم الحل" value="64%" tone="green" />
-              <StatusRow label="قيد التنفيذ" value="21%" tone="blue" />
-              <StatusRow label="قيد المراجعة" value="11%" tone="amber" />
-              <StatusRow label="مرفوض" value="4%" tone="red" />
+              {loading ? (
+                <div className="empty-state">جاري تحميل البيانات...</div>
+              ) : statusDistribution.length === 0 ? (
+                <div className="empty-state">لا توجد بيانات.</div>
+              ) : (
+                statusDistribution.map((item) => (
+                  <StatusRow
+                    key={item.status}
+                    label={item.label}
+                    value={`${item.percentage}%`}
+                    tone={item.tone}
+                  />
+                ))
+              )}
             </div>
           </article>
         </section>
@@ -237,46 +486,59 @@ function App() {
               </thead>
 
               <tbody>
-                {recentReports.map((report) => (
-                  <tr key={report.id}>
-                    <td>
-                      <strong>{report.title}</strong>
-                      <span>{report.id}</span>
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="table-empty">
+                      جاري تحميل البلاغات...
                     </td>
-
-                    <td>{report.category}</td>
-
-                    <td>
-                      <span
-                        className={`badge status-${
-                          report.status === 'تم الحل'
-                            ? 'green'
-                            : report.status === 'قيد التنفيذ'
-                              ? 'blue'
-                              : 'amber'
-                        }`}
-                      >
-                        {report.status}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span
-                        className={`badge priority-${
-                          report.priority === 'عاجل'
-                            ? 'red'
-                            : report.priority === 'متوسط'
-                              ? 'amber'
-                              : 'green'
-                        }`}
-                      >
-                        {report.priority}
-                      </span>
-                    </td>
-
-                    <td>{report.date}</td>
                   </tr>
-                ))}
+                ) : recentReports.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="table-empty">
+                      لا توجد بلاغات حالياً.
+                    </td>
+                  </tr>
+                ) : (
+                  recentReports.map((report) => {
+                    const status = report.status
+                    const priority = report.priority
+
+                    return (
+                      <tr key={report.id}>
+                        <td>
+                          <strong>{report.title}</strong>
+                          <span>#{report.reference_number}</span>
+                        </td>
+
+                        <td>#{report.category_id}</td>
+
+                        <td>
+                          <span
+                            className={`badge status-${
+                              statusTones[status] || 'blue'
+                            }`}
+                          >
+                            {statusLabels[status] || status}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`badge priority-${
+                              priorityTones[priority] || 'blue'
+                            }`}
+                          >
+                            {priorityLabels[priority] || priority}
+                          </span>
+                        </td>
+
+                        <td title={formatDate(report.created_at)}>
+                          {formatDate(report.created_at)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
