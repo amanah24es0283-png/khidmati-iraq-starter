@@ -80,6 +80,9 @@ export default function CitizenDashboard({ user, onLogout }) {
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [notifications, setNotifications] = useState([])
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   async function loadReports() {
     try {
@@ -95,6 +98,40 @@ export default function CitizenDashboard({ user, onLogout }) {
       setError('تعذر تحميل بلاغاتك حالياً.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadNotifications() {
+    try {
+      const [notificationsResponse, unreadResponse] = await Promise.all([
+        api.get('/notifications'),
+        api.get('/notifications/unread-count'),
+      ])
+
+      setNotifications(notificationsResponse.data || [])
+      setUnreadNotifications(unreadResponse.data?.count || 0)
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        onLogout()
+      }
+    }
+  }
+
+  async function markNotificationRead(notificationId) {
+    try {
+      await api.patch(`/notifications/${notificationId}/read`)
+
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, is_read: true }
+            : notification
+        )
+      )
+
+      setUnreadNotifications((current) => Math.max(0, current - 1))
+    } catch {
+      setError('تعذر تحديث الإشعار.')
     }
   }
 
@@ -115,6 +152,11 @@ export default function CitizenDashboard({ user, onLogout }) {
   useEffect(() => {
     loadReports()
     loadReferenceData()
+    loadNotifications()
+
+    const notificationTimer = setInterval(loadNotifications, 30000)
+
+    return () => clearInterval(notificationTimer)
   }, [])
 
   async function handleGovernorateChange(value) {
@@ -330,13 +372,66 @@ export default function CitizenDashboard({ user, onLogout }) {
           </div>
 
           <div className="citizen-top-actions">
-            <button
-              className="citizen-icon-button"
-              aria-label="الإشعارات"
-              title="الإشعارات"
-            >
-              <Bell size={20} />
-            </button>
+            <div className="citizen-notification-wrapper">
+              <button
+                className="citizen-icon-button"
+                aria-label="الإشعارات"
+                title="الإشعارات"
+                onClick={() => setNotificationsOpen((current) => !current)}
+              >
+                <Bell size={20} />
+                {unreadNotifications > 0 && (
+                  <span className="citizen-notification-badge">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <div className="citizen-notifications-panel">
+                  <div className="citizen-notifications-header">
+                    <strong>الإشعارات</strong>
+                    <span>{unreadNotifications} غير مقروء</span>
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <div className="citizen-notifications-empty">
+                      لا توجد إشعارات حالياً
+                    </div>
+                  ) : (
+                    <div className="citizen-notifications-list">
+                      {notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          className={`citizen-notification-item ${
+                            notification.is_read ? 'read' : 'unread'
+                          }`}
+                          onClick={() => {
+                            if (!notification.is_read) {
+                              markNotificationRead(notification.id)
+                            }
+                          }}
+                        >
+                          <div className="citizen-notification-icon">
+                            <Bell size={16} />
+                          </div>
+
+                          <div className="citizen-notification-content">
+                            <strong>{notification.title}</strong>
+                            <p>{notification.message}</p>
+                            <small>{formatCitizenDate(notification.created_at)}</small>
+                          </div>
+
+                          {!notification.is_read && (
+                            <span className="citizen-notification-dot" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="citizen-mini-user">
               <div className="citizen-avatar small">
