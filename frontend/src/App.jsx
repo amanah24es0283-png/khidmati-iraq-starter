@@ -22,6 +22,7 @@ import {
 } from 'recharts'
 import './App.css'
 import Login from './Login'
+import CitizenDashboard from './CitizenDashboard'
 import { clearSession, getToken, getUser } from './auth'
 import api from './api/client'
 
@@ -178,6 +179,19 @@ function App() {
         onLogin={(loggedInUser) => {
           setUser(loggedInUser)
           setToken(getToken())
+        }}
+      />
+    )
+  }
+
+  if (user.role === 'citizen') {
+    return (
+      <CitizenDashboard
+        user={user}
+        onLogout={() => {
+          clearSession()
+          setToken(null)
+          setUser(null)
         }}
       />
     )
