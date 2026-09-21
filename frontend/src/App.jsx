@@ -1,6 +1,7 @@
 import {
   Bell,
   ChevronLeft,
+  MapPin,
   FileText,
   Home,
   LogOut,
@@ -115,6 +116,13 @@ function App() {
   const [dashboard, setDashboard] = useState(null)
   const [trendData, setTrendData] = useState([])
   const [recentReports, setRecentReports] = useState([])
+  const [governorates, setGovernorates] = useState([])
+  const [monitoring, setMonitoring] = useState([])
+  const [monitoringLoading, setMonitoringLoading] = useState(true)
+  const [monitoringSaving, setMonitoringSaving] = useState(false)
+  const [selectedGovernorate, setSelectedGovernorate] = useState('')
+  const [monitoringReason, setMonitoringReason] = useState('')
+  const [monitoringNotes, setMonitoringNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -128,8 +136,13 @@ function App() {
         setLoading(true)
         setError('')
 
-        const [dashboardResponse, trendsResponse, reportsResponse] =
-          await Promise.all([
+        const [
+          dashboardResponse,
+          trendsResponse,
+          reportsResponse,
+          governoratesResponse,
+          monitoringResponse,
+        ] = await Promise.all([
             api.get('/admin/dashboard'),
             api.get('/admin/dashboard/status-trends', {
               params: { days: 7 },
@@ -137,6 +150,8 @@ function App() {
             api.get('/admin/reports', {
               params: { page: 1, page_size: 5 },
             }),
+            api.get('/governorates'),
+            api.get('/admin/governorates/monitoring'),
           ])
 
         if (cancelled) return
@@ -144,6 +159,9 @@ function App() {
         setDashboard(dashboardResponse.data)
         setTrendData(trendsResponse.data?.data || [])
         setRecentReports(reportsResponse.data?.items || [])
+        setGovernorates(governoratesResponse.data || [])
+        setMonitoring(monitoringResponse.data || [])
+        setMonitoringLoading(false)
       } catch (requestError) {
         if (cancelled) return
 
@@ -162,7 +180,10 @@ function App() {
           )
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setMonitoringLoading(false)
+        }
       }
     }
 
@@ -195,6 +216,54 @@ function App() {
         }}
       />
     )
+  }
+
+  async function saveGovernorateMonitoring() {
+    if (!selectedGovernorate) {
+      setError('اختاري محافظة أولاً.')
+      return
+    }
+
+    try {
+      setMonitoringSaving(true)
+      setError('')
+
+      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
+        is_active: true,
+        reason: monitoringReason.trim() || null,
+        notes: monitoringNotes.trim() || null,
+      })
+
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+      setSelectedGovernorate('')
+      setMonitoringReason('')
+      setMonitoringNotes('')
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر تحديث متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
+  }
+
+  async function disableGovernorateMonitoring(governorateId) {
+    try {
+      setMonitoringSaving(true)
+      setError('')
+      await api.delete(`/admin/governorates/${governorateId}/monitoring`)
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر إيقاف متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
   }
 
   function handleLogout() {
@@ -526,6 +595,102 @@ function App() {
           </article>
         </section>
 
+        <section className="panel monitoring-panel">
+          <div className="panel-header">
+            <div>
+              <h3>المحافظات ذات المتابعة المستمرة</h3>
+              <span>إدارة المحافظات التي تحتاج إلى متابعة مستمرة</span>
+            </div>
+            <div className="monitoring-count">
+              <MapPin size={16} />
+              {monitoring.filter((item) => item.is_active).length} مفعّلة
+            </div>
+          </div>
+
+          <div className="monitoring-form">
+            <select
+              value={selectedGovernorate}
+              onChange={(event) => setSelectedGovernorate(event.target.value)}
+            >
+              <option value="">اختيار المحافظة</option>
+              {governorates.map((governorate) => (
+                <option
+                  key={governorate.id}
+                  value={governorate.id}
+                >
+                  {governorate.name_ar}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="text"
+              value={monitoringReason}
+              onChange={(event) => setMonitoringReason(event.target.value)}
+              placeholder="سبب المتابعة"
+            />
+
+            <input
+              type="text"
+              value={monitoringNotes}
+              onChange={(event) => setMonitoringNotes(event.target.value)}
+              placeholder="ملاحظات إضافية"
+            />
+
+            <button
+              className="monitoring-save"
+              onClick={saveGovernorateMonitoring}
+              disabled={monitoringSaving || !selectedGovernorate}
+            >
+              {monitoringSaving ? 'جاري الحفظ...' : 'تفعيل المتابعة'}
+            </button>
+          </div>
+
+          <div className="monitoring-list">
+            {monitoringLoading ? (
+              <div className="empty-state">جاري تحميل المحافظات...</div>
+            ) : monitoring.length === 0 ? (
+              <div className="empty-state">
+                لا توجد محافظات محددة للمتابعة حالياً.
+              </div>
+            ) : (
+              monitoring.map((item) => (
+                <div
+                  className={`monitoring-item ${
+                    item.is_active ? 'active' : 'inactive'
+                  }`}
+                  key={item.governorate_id}
+                >
+                  <div className="monitoring-icon">
+                    <MapPin size={18} />
+                  </div>
+
+                  <div className="monitoring-info">
+                    <strong>{item.governorate_name_ar}</strong>
+                    <span>
+                      {item.is_active ? 'متابعة مستمرة' : 'المتابعة متوقفة'}
+                    </span>
+                    {item.reason && <small>السبب: {item.reason}</small>}
+                    {item.notes && <small>ملاحظات: {item.notes}</small>}
+                  </div>
+
+                  {item.is_active && (
+                    <button
+                      className="monitoring-disable"
+                      onClick={() =>
+                        disableGovernorateMonitoring(item.governorate_id)
+                      }
+                      disabled={monitoringSaving}
+                    >
+                      إيقاف
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
         <section className="panel reports-panel">
           <div className="panel-header">
             <div>
@@ -773,6 +938,54 @@ function SettingsPage() {
 
   function changeTheme(nextTheme) {
     setTheme(nextTheme)
+  }
+
+  async function saveGovernorateMonitoring() {
+    if (!selectedGovernorate) {
+      setError('اختاري محافظة أولاً.')
+      return
+    }
+
+    try {
+      setMonitoringSaving(true)
+      setError('')
+
+      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
+        is_active: true,
+        reason: monitoringReason.trim() || null,
+        notes: monitoringNotes.trim() || null,
+      })
+
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+      setSelectedGovernorate('')
+      setMonitoringReason('')
+      setMonitoringNotes('')
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر تحديث متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
+  }
+
+  async function disableGovernorateMonitoring(governorateId) {
+    try {
+      setMonitoringSaving(true)
+      setError('')
+      await api.delete(`/admin/governorates/${governorateId}/monitoring`)
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر إيقاف متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
   }
 
   function handleLogout() {
@@ -1171,7 +1384,10 @@ function ReportsPage() {
           setError('تعذر تحميل البلاغات. تأكدي من تشغيل الـBackend.')
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setMonitoringLoading(false)
+        }
       }
     }
 
