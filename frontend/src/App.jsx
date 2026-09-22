@@ -1119,7 +1119,7 @@ function App() {
 
       const response = await api.get('/admin/reports', {
         params: {
-          ...reportFilters,
+          ...Object.fromEntries(Object.entries(reportFilters).filter(([, value]) => value !== '')),
           page: 1,
           page_size: 100,
         },
