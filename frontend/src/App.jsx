@@ -101,6 +101,67 @@ function formatShortDate(value) {
   }).format(date)
 }
 
+
+function exportReportsCSV(reports) {
+  if (!reports || reports.length === 0) {
+    alert("لا توجد تقارير لتصديرها");
+    return;
+  }
+
+  const headers = [
+    "رقم المرجع",
+    "العنوان",
+    "الوصف",
+    "الحالة",
+    "الأولوية",
+    "رقم التصنيف",
+    "رقم المحافظة",
+    "رقم المنطقة",
+    "تاريخ الإنشاء",
+    "آخر تحديث",
+  ];
+
+  const rows = reports.map((report) => [
+    report.reference_number ?? "",
+    report.title ?? "",
+    report.description ?? "",
+    report.status ?? "",
+    report.priority ?? "",
+    report.category_id ?? "",
+    report.governorate_id ?? "",
+    report.area_id ?? "",
+    report.created_at ?? "",
+    report.updated_at ?? "",
+  ]);
+
+  const csv = [
+    headers,
+    ...rows,
+  ]
+    .map((row) =>
+      row
+        .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+        .join(",")
+    )
+    .join("\\r\\n");
+
+  const blob = new Blob(["\\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+
+  const date = new Date().toISOString().slice(0, 10);
+  link.download = `khidmati-reports-${date}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activePage, setActivePage] = useState('الرئيسية')
@@ -597,6 +658,16 @@ function App() {
             </div>
           </article>
         </section>
+
+        <div className="export-reports-bar">
+          <div>
+            <h3>تصدير التقارير</h3>
+            <p>تحميل التقارير الحالية بصيغة CSV لفتحها في Excel.</p>
+          </div>
+          <button className="export-reports-btn" onClick={handleExportReports}>
+            📄 تصدير التقارير
+          </button>
+        </div>
 
         <section className="analytics-grid">
           <div className="panel analytics-panel">

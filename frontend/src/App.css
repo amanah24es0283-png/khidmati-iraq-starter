@@ -3752,3 +3752,53 @@ footer {
     grid-column: auto;
   }
 }
+
+.export-reports-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.export-reports-bar h3 {
+  margin: 0 0 5px;
+  font-size: 18px;
+}
+
+.export-reports-bar p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.export-reports-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 18px;
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.export-reports-btn:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 700px) {
+  .export-reports-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .export-reports-btn {
+    width: 100%;
+  }
+}
