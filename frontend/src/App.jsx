@@ -180,6 +180,15 @@ function App() {
   const [dashboard, setDashboard] = useState(null)
   const [trendData, setTrendData] = useState([])
   const [recentReports, setRecentReports] = useState([])
+  const [reportFilters, setReportFilters] = useState({
+    search: '',
+    status: '',
+    priority: '',
+    governorate_id: '',
+    category_id: '',
+  })
+  const [reportsFilterLoading, setReportsFilterLoading] = useState(false)
+
   const [governorates, setGovernorates] = useState([])
   const [monitoring, setMonitoring] = useState([])
   const [monitoringLoading, setMonitoringLoading] = useState(true)
@@ -280,6 +289,50 @@ function App() {
         }}
       />
     )
+  }
+
+  async function loadFilteredReports() {
+    try {
+      setReportsFilterLoading(true)
+
+      const params = {
+        page: 1,
+        page_size: 20,
+      }
+
+      Object.entries(reportFilters).forEach(([key, value]) => {
+        if (value !== '') {
+          params[key] = value
+        }
+      })
+
+      const response = await api.get('/admin/reports', { params })
+      setRecentReports(response.data?.items || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر تحميل التقارير حسب الفلاتر.'
+      )
+    } finally {
+      setReportsFilterLoading(false)
+    }
+  }
+
+  function updateReportFilter(key, value) {
+    setReportFilters((current) => ({
+      ...current,
+      [key]: value,
+    }))
+  }
+
+  function clearReportFilters() {
+    setReportFilters({
+      search: '',
+      status: '',
+      priority: '',
+      governorate_id: '',
+      category_id: '',
+    })
   }
 
   async function saveGovernorateMonitoring() {
@@ -871,6 +924,104 @@ function App() {
               عرض كل البلاغات
               <ChevronLeft size={16} />
             </button>
+          </div>
+
+          <div className="report-filters">
+            <div className="report-filter-field report-search">
+              <label>البحث</label>
+              <input
+                type="text"
+                value={reportFilters.search}
+                onChange={(event) =>
+                  updateReportFilter('search', event.target.value)
+                }
+                placeholder="رقم البلاغ أو العنوان أو الوصف"
+              />
+            </div>
+
+            <div className="report-filter-field">
+              <label>الحالة</label>
+              <select
+                value={reportFilters.status}
+                onChange={(event) =>
+                  updateReportFilter('status', event.target.value)
+                }
+              >
+                <option value="">كل الحالات</option>
+                <option value="submitted">مُرسل</option>
+                <option value="under_review">قيد المراجعة</option>
+                <option value="referred">تمت الإحالة</option>
+                <option value="in_progress">قيد المعالجة</option>
+                <option value="resolved">تم الحل</option>
+                <option value="rejected">مرفوض</option>
+              </select>
+            </div>
+
+            <div className="report-filter-field">
+              <label>الأولوية</label>
+              <select
+                value={reportFilters.priority}
+                onChange={(event) =>
+                  updateReportFilter('priority', event.target.value)
+                }
+              >
+                <option value="">كل الأولويات</option>
+                <option value="low">منخفضة</option>
+                <option value="medium">متوسطة</option>
+                <option value="high">عالية</option>
+                <option value="urgent">عاجلة</option>
+              </select>
+            </div>
+
+            <div className="report-filter-field">
+              <label>المحافظة</label>
+              <select
+                value={reportFilters.governorate_id}
+                onChange={(event) =>
+                  updateReportFilter('governorate_id', event.target.value)
+                }
+              >
+                <option value="">كل المحافظات</option>
+                {governorates.map((governorate) => (
+                  <option
+                    key={governorate.id}
+                    value={governorate.id}
+                  >
+                    {governorate.name_ar || governorate.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="report-filter-field">
+              <label>رقم التصنيف</label>
+              <input
+                type="number"
+                min="1"
+                value={reportFilters.category_id}
+                onChange={(event) =>
+                  updateReportFilter('category_id', event.target.value)
+                }
+                placeholder="مثال: 1"
+              />
+            </div>
+
+            <div className="report-filter-actions">
+              <button
+                className="primary-outline"
+                onClick={loadFilteredReports}
+                disabled={reportsFilterLoading}
+              >
+                {reportsFilterLoading ? 'جارٍ البحث...' : '🔎 بحث'}
+              </button>
+
+              <button
+                className="filter-clear-btn"
+                onClick={clearReportFilters}
+              >
+                مسح
+              </button>
+            </div>
           </div>
 
           <div className="table-wrap">
