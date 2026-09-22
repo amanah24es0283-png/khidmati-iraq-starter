@@ -111,6 +111,7 @@ def record_status_change(
         new_status.value,
     )
 
+    # إشعار المواطن
     notification = Notification(
         user_id=report.citizen_id,
         report_id=report.id,
@@ -122,6 +123,33 @@ def record_status_change(
         notification_type="report_status",
     )
     db.add(notification)
+
+    # إشعار جميع الأدمن النشطين
+    admin_users = (
+        db.query(User)
+        .filter(
+            User.role == UserRole.admin,
+            User.is_active.is_(True),
+        )
+        .all()
+    )
+
+    for admin in admin_users:
+        # لا نرسل للأدمن إشعارًا عن التغيير الذي نفذه بنفسه
+        if admin.id == changed_by.id:
+            continue
+
+        admin_notification = Notification(
+            user_id=admin.id,
+            report_id=report.id,
+            title="تحديث بلاغ يحتاج متابعة",
+            message=(
+                f"تم تحديث حالة البلاغ {report.reference_number} "
+                f"إلى «{status_label}»."
+            ),
+            notification_type="admin_report_status",
+        )
+        db.add(admin_notification)
 
 
 # ---------------------------------------------------------------------------

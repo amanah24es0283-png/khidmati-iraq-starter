@@ -199,6 +199,43 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [adminNotifications, setAdminNotifications] = useState([])
+  const [adminUnreadNotifications, setAdminUnreadNotifications] = useState(0)
+  const [adminNotificationsOpen, setAdminNotificationsOpen] = useState(false)
+
+  async function loadAdminNotifications() {
+    if (!token || !user) return
+
+    try {
+      const [notificationsResponse, unreadResponse] = await Promise.all([
+        api.get('/notifications'),
+        api.get('/notifications/unread-count'),
+      ])
+
+      setAdminNotifications(notificationsResponse.data || [])
+      setAdminUnreadNotifications(unreadResponse.data?.count || 0)
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        clearSession()
+        setToken(null)
+        setUser(null)
+      }
+    }
+  }
+
+  async function markAdminNotificationRead(notificationId) {
+    try {
+      await api.patch(`/notifications/${notificationId}/read`)
+      await loadAdminNotifications()
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        clearSession()
+        setToken(null)
+        setUser(null)
+      }
+    }
+  }
+
   useEffect(() => {
     if (!token || !user) return
 
@@ -501,10 +538,83 @@ function App() {
                 title="داكن"
               />
             </div>
-            <button className="icon-button notification" aria-label="الإشعارات">
+            <div className="admin-notification-wrapper">
+            <button
+              type="button"
+              className="icon-button notification"
+              aria-label="الإشعارات"
+              onClick={() =>
+                setAdminNotificationsOpen((current) => !current)
+              }
+            >
               <Bell size={20} />
-              <span />
+              {adminUnreadNotifications > 0 && (
+                <span className="notification-badge">
+                  {adminUnreadNotifications > 99
+                    ? '99+'
+                    : adminUnreadNotifications}
+                </span>
+              )}
             </button>
+
+            {adminNotificationsOpen && (
+              <div className="admin-notification-panel">
+                <div className="admin-notification-header">
+                  <div>
+                    <strong>الإشعارات</strong>
+                    <span>
+                      {adminUnreadNotifications > 0
+                        ? `${adminUnreadNotifications} غير مقروء`
+                        : 'لا توجد إشعارات غير مقروءة'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={loadAdminNotifications}
+                  >
+                    تحديث
+                  </button>
+                </div>
+
+                <div className="admin-notification-list">
+                  {adminNotifications.length === 0 ? (
+                    <div className="admin-notification-empty">
+                      لا توجد إشعارات حاليًا.
+                    </div>
+                  ) : (
+                    adminNotifications.map((notification) => (
+                      <button
+                        type="button"
+                        key={notification.id}
+                        className={`admin-notification-item ${
+                          notification.is_read ? 'read' : 'unread'
+                        }`}
+                        onClick={() => {
+                          if (!notification.is_read) {
+                            markAdminNotificationRead(notification.id)
+                          }
+                        }}
+                      >
+                        <div className="admin-notification-title">
+                          <strong>{notification.title}</strong>
+                          {!notification.is_read && (
+                            <span className="admin-notification-dot" />
+                          )}
+                        </div>
+
+                        <p>{notification.message}</p>
+
+                        <small>
+                          {formatShortDate(notification.created_at)}
+                        </small>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
             <div className="user-chip">
               <div className="avatar">
