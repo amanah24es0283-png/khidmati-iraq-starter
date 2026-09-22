@@ -193,7 +193,7 @@ function App() {
   const [monitoring, setMonitoring] = useState([])
   const [monitoringLoading, setMonitoringLoading] = useState(true)
   const [monitoringSaving, setMonitoringSaving] = useState(false)
-  const [selectedGovernorate, setSelectedGovernorate] = useState('')
+  const [selectedGovernorates, setSelectedGovernorates] = useState([])
   const [monitoringReason, setMonitoringReason] = useState('')
   const [monitoringNotes, setMonitoringNotes] = useState('')
   const [loading, setLoading] = useState(true)
@@ -787,20 +787,31 @@ function App() {
           </div>
 
           <div className="monitoring-form">
-            <select
-              value={selectedGovernorate}
-              onChange={(event) => setSelectedGovernorate(event.target.value)}
-            >
-              <option value="">اختيار المحافظة</option>
-              {governorates.map((governorate) => (
-                <option
-                  key={governorate.id}
-                  value={governorate.id}
-                >
-                  {governorate.name_ar}
-                </option>
-              ))}
-            </select>
+            <div className="monitoring-governorates">
+              <label>اختيار المحافظات للمتابعة</label>
+              <div className="monitoring-governorate-options">
+                {governorates.map((governorate) => (
+                  <label
+                    className="monitoring-governorate-option"
+                    key={governorate.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGovernorates.includes(String(governorate.id))}
+                      onChange={(event) => {
+                        const id = String(governorate.id)
+                        setSelectedGovernorates((current) =>
+                          event.target.checked
+                            ? [...current, id]
+                            : current.filter((item) => item !== id)
+                        )
+                      }}
+                    />
+                    <span>{governorate.name_ar}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <input
               type="text"
@@ -819,7 +830,7 @@ function App() {
             <button
               className="monitoring-save"
               onClick={saveGovernorateMonitoring}
-              disabled={monitoringSaving || !selectedGovernorate}
+              disabled={monitoringSaving || selectedGovernorates.length === 0}
             >
               {monitoringSaving ? 'جاري الحفظ...' : 'تفعيل المتابعة'}
             </button>
@@ -1063,8 +1074,8 @@ function App() {
   )
 
   async function saveGovernorateMonitoring() {
-    if (!selectedGovernorate) {
-      setError('اختاري محافظة أولاً.')
+    if (selectedGovernorates.length === 0) {
+      setError('اختاري محافظة واحدة على الأقل.')
       return
     }
 
@@ -1072,27 +1083,30 @@ function App() {
       setMonitoringSaving(true)
       setError('')
 
-      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
-        is_active: true,
-        reason: monitoringReason.trim() || null,
-        notes: monitoringNotes.trim() || null,
-      })
+      await Promise.all(
+        selectedGovernorates.map((governorateId) =>
+          api.put(`/admin/governorates/${governorateId}/monitoring`, {
+            is_active: true,
+            reason: monitoringReason.trim() || null,
+            notes: monitoringNotes.trim() || null,
+          })
+        )
+      )
 
       const response = await api.get('/admin/governorates/monitoring')
       setMonitoring(response.data || [])
-      setSelectedGovernorate('')
+      setSelectedGovernorates([])
       setMonitoringReason('')
       setMonitoringNotes('')
     } catch (requestError) {
       setError(
         requestError.response?.data?.detail ||
-          'تعذر تحديث متابعة المحافظة.'
+          'تعذر تحديث متابعة المحافظات.'
       )
     } finally {
       setMonitoringSaving(false)
     }
   }
-
   async function disableGovernorateMonitoring(governorateId) {
     try {
       setMonitoringSaving(true)
