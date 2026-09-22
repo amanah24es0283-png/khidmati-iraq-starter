@@ -262,8 +262,13 @@ function App() {
 
     loadDashboard()
 
+    const refreshInterval = window.setInterval(() => {
+      loadDashboard()
+    }, 30000)
+
     return () => {
       cancelled = true
+      window.clearInterval(refreshInterval)
     }
   }, [token, user])
 
