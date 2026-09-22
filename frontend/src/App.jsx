@@ -340,54 +340,6 @@ function App() {
     })
   }
 
-  async function saveGovernorateMonitoring() {
-    if (!selectedGovernorate) {
-      setError('اختاري محافظة أولاً.')
-      return
-    }
-
-    try {
-      setMonitoringSaving(true)
-      setError('')
-
-      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
-        is_active: true,
-        reason: monitoringReason.trim() || null,
-        notes: monitoringNotes.trim() || null,
-      })
-
-      const response = await api.get('/admin/governorates/monitoring')
-      setMonitoring(response.data || [])
-      setSelectedGovernorate('')
-      setMonitoringReason('')
-      setMonitoringNotes('')
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.detail ||
-          'تعذر تحديث متابعة المحافظة.'
-      )
-    } finally {
-      setMonitoringSaving(false)
-    }
-  }
-
-  async function disableGovernorateMonitoring(governorateId) {
-    try {
-      setMonitoringSaving(true)
-      setError('')
-      await api.delete(`/admin/governorates/${governorateId}/monitoring`)
-      const response = await api.get('/admin/governorates/monitoring')
-      setMonitoring(response.data || [])
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.detail ||
-          'تعذر إيقاف متابعة المحافظة.'
-      )
-    } finally {
-      setMonitoringSaving(false)
-    }
-  }
-
   function handleLogout() {
     clearSession()
     setToken(null)
@@ -1109,10 +1061,80 @@ function App() {
       </main>
     </div>
   )
+
+  async function saveGovernorateMonitoring() {
+    if (!selectedGovernorate) {
+      setError('اختاري محافظة أولاً.')
+      return
+    }
+
+    try {
+      setMonitoringSaving(true)
+      setError('')
+
+      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
+        is_active: true,
+        reason: monitoringReason.trim() || null,
+        notes: monitoringNotes.trim() || null,
+      })
+
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+      setSelectedGovernorate('')
+      setMonitoringReason('')
+      setMonitoringNotes('')
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر تحديث متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
+  }
+
+  async function disableGovernorateMonitoring(governorateId) {
+    try {
+      setMonitoringSaving(true)
+      setError('')
+
+      await api.delete(`/admin/governorates/${governorateId}/monitoring`)
+
+      const response = await api.get('/admin/governorates/monitoring')
+      setMonitoring(response.data || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر إيقاف متابعة المحافظة.'
+      )
+    } finally {
+      setMonitoringSaving(false)
+    }
+  }
+
+
+  async function handleExportReports() {
+    try {
+      setError('')
+
+      const response = await api.get('/admin/reports', {
+        params: {
+          ...reportFilters,
+          page: 1,
+          page_size: 100,
+        },
+      })
+
+      exportReportsCSV(response.data?.items || [])
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'تعذر تصدير التقارير.'
+      )
+    }
+  }
+
 }
-
-
-
 function AuditLogsPage() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1264,55 +1286,6 @@ function SettingsPage() {
   function changeTheme(nextTheme) {
     setTheme(nextTheme)
   }
-
-  async function saveGovernorateMonitoring() {
-    if (!selectedGovernorate) {
-      setError('اختاري محافظة أولاً.')
-      return
-    }
-
-    try {
-      setMonitoringSaving(true)
-      setError('')
-
-      await api.put(`/admin/governorates/${selectedGovernorate}/monitoring`, {
-        is_active: true,
-        reason: monitoringReason.trim() || null,
-        notes: monitoringNotes.trim() || null,
-      })
-
-      const response = await api.get('/admin/governorates/monitoring')
-      setMonitoring(response.data || [])
-      setSelectedGovernorate('')
-      setMonitoringReason('')
-      setMonitoringNotes('')
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.detail ||
-          'تعذر تحديث متابعة المحافظة.'
-      )
-    } finally {
-      setMonitoringSaving(false)
-    }
-  }
-
-  async function disableGovernorateMonitoring(governorateId) {
-    try {
-      setMonitoringSaving(true)
-      setError('')
-      await api.delete(`/admin/governorates/${governorateId}/monitoring`)
-      const response = await api.get('/admin/governorates/monitoring')
-      setMonitoring(response.data || [])
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.detail ||
-          'تعذر إيقاف متابعة المحافظة.'
-      )
-    } finally {
-      setMonitoringSaving(false)
-    }
-  }
-
   function handleLogout() {
     clearSession()
     window.location.reload()
@@ -1711,7 +1684,6 @@ function ReportsPage() {
       } finally {
         if (!cancelled) {
           setLoading(false)
-          setMonitoringLoading(false)
         }
       }
     }
