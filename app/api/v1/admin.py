@@ -16,6 +16,7 @@ from app.models.category import ServiceCategory
 from app.models.audit_log import AuditLog
 from app.models.report import Report, ReportPriority, ReportStatus
 from app.models.user import User, UserRole
+from app.schemas.governorate_stats import GovernorateStatsResponse
 from app.schemas.audit_log import AuditLogResponse
 from app.schemas.report import (
     AssignRequest,
@@ -455,6 +456,67 @@ def dashboard_trends(
     }
 
 # ---------------------------------------------------------------------------
+
+# Governorate statistics for the admin dashboard
+@router.get(
+    "/dashboard/governorates",
+    response_model=list[GovernorateStatsResponse],
+)
+def governorate_statistics(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    governorates = (
+        db.query(Governorate)
+        .filter(Governorate.is_active.is_(True))
+        .order_by(Governorate.name_ar.asc())
+        .all()
+    )
+
+    reports = db.query(Report).all()
+
+    stats_by_governorate = {
+        governorate.id: {
+            "areas_count": sum(
+                1 for area in governorate.areas if area.is_active
+            ),
+            "total_reports": 0,
+            "submitted_reports": 0,
+            "under_review_reports": 0,
+            "assigned_reports": 0,
+            "in_progress_reports": 0,
+            "resolved_reports": 0,
+            "rejected_reports": 0,
+            "cancelled_reports": 0,
+            "urgent_reports": 0,
+        }
+        for governorate in governorates
+    }
+
+    for report in reports:
+        stats = stats_by_governorate.get(report.governorate_id)
+        if stats is None:
+            continue
+
+        stats["total_reports"] += 1
+
+        status_key = f"{report.status.value}_reports"
+        if status_key in stats:
+            stats[status_key] += 1
+
+        if report.priority == ReportPriority.urgent:
+            stats["urgent_reports"] += 1
+
+    return [
+        GovernorateStatsResponse(
+            id=governorate.id,
+            name_ar=governorate.name_ar,
+            name_en=governorate.name_en,
+            **stats_by_governorate[governorate.id],
+        )
+        for governorate in governorates
+    ]
+
 # Governorate continuous monitoring
 # ---------------------------------------------------------------------------
 
